@@ -1,0 +1,107 @@
+[DEPRECATION WARNING] The monday-sdk-js server SDK is deprecated and will be removed in version 1.0.0.
+The 'api()' method for GraphQL queries should be replaced with the official @mondaydotcomorg/api package: https://www.npmjs.com/package/@mondaydotcomorg/api
+For more information, visit: https://developer.monday.com/api-reference/docs/api-sdk
+Error executing Monday API query: FetchError: request to https://api.monday.com/v2 failed, reason: getaddrinfo ENOTFOUND api.monday.com
+    at ClientRequest.<anonymous> (E:\Monday.com\backend\node_modules\node-fetch\lib\index.js:1501:11)
+    at ClientRequest.emit (node:events:509:28)
+    at emitErrorEvent (node:_http_client:109:11)
+    at TLSSocket.socketErrorListener (node:_http_client:593:5)
+    at TLSSocket.emit (node:events:509:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  type: 'system',
+  errno: 'ENOTFOUND',
+  code: 'ENOTFOUND'
+}
+Error fetching client dashboard: FetchError: request to https://api.monday.com/v2 failed, reason: getaddrinfo ENOTFOUND api.monday.com
+    at ClientRequest.<anonymous> (E:\Monday.com\backend\node_modules\node-fetch\lib\index.js:1501:11)
+    at ClientRequest.emit (node:events:509:28)
+    at emitErrorEvent (node:_http_client:109:11)
+    at TLSSocket.socketErrorListener (node:_http_client:593:5)
+    at TLSSocket.emit (node:events:509:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  type: 'system',
+  errno: 'ENOTFOUND',
+  code: 'ENOTFOUND'
+}
+Error executing Monday API query: FetchError: request to https://api.monday.com/v2 failed, reason: getaddrinfo ENOTFOUND api.monday.com
+    at ClientRequest.<anonymous> (E:\Monday.com\backend\node_modules\node-fetch\lib\index.js:1501:11)
+    at ClientRequest.emit (node:events:509:28)
+    at emitErrorEvent (node:_http_client:109:11)
+    at TLSSocket.socketErrorListener (node:_http_client:593:5)
+    at TLSSocket.emit (node:events:509:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  type: 'system',
+  errno: 'ENOTFOUND',
+  code: 'ENOTFOUND'
+}
+Error fetching client dashboard: FetchError: request to https://api.monday.com/v2 failed, reason: getaddrinfo ENOTFOUND api.monday.com
+    at ClientRequest.<anonymous> (E:\Monday.com\backend\node_modules\node-fetch\lib\index.js:1501:11)
+    at ClientRequest.emit (node:events:509:28)
+    at emitErrorEvent (node:_http_client:109:11)
+    at TLSSocket.socketErrorListener (node:_http_client:593:5)
+    at TLSSocket.emit (node:events:509:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  type: 'system',
+  errno: 'ENOTFOUND',
+  code: 'ENOTFOUND'
+}
+Error executing Monday API query: FetchError: request to https://api.monday.com/v2 failed, reason: getaddrinfo ENOTFOUND api.monday.com
+    at ClientRequest.<anonymous> (E:\Monday.com\backend\node_modules\node-fetch\lib\index.js:1501:11)
+    at ClientRequest.emit (node:events:509:28)
+    at emitErrorEvent (node:_http_client:109:11)
+    at TLSSocket.socketErrorListener (node:_http_client:593:5)
+    at TLSSocket.emit (node:events:509:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  type: 'system',
+  errno: 'ENOTFOUND',
+  code: 'ENOTFOUND'
+}
+Error fetching client dashboard: FetchError: request to https://api.monday.com/v2 failed, reason: getaddrinfo ENOTFOUND api.monday.com
+    at ClientRequest.<anonymous> (E:\Monday.com\backend\node_modules\node-fetch\lib\index.js:1501:11)
+    at ClientRequest.emit (node:events:509:28)
+    at emitErrorEvent (node:_http_client:109:11)
+    at TLSSocket.socketErrorListener (node:_http_client:593:5)
+    at TLSSocket.emit (node:events:509:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  type: 'system',
+  errno: 'ENOTFOUND',
+  code: 'ENOTFOUND'
+}
+Error executing Monday API query: FetchError: request to https://api.monday.com/v2 failed, reason: getaddrinfo ENOTFOUND api.monday.com
+    at ClientRequest.<anonymous> (E:\Monday.com\backend\node_modules\node-fetch\lib\index.js:1501:11)
+    at ClientRequest.emit (node:events:509:28)
+    at emitErrorEvent (node:_http_client:109:11)
+    at TLSSocket.socketErrorListener (node:_http_client:593:5)
+    at TLSSocket.emit (node:events:509:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  type: 'system',
+  errno: 'ENOTFOUND',
+  code: 'ENOTFOUND'
+}
+Error fetching client dashboard: FetchError: request to https://api.monday.com/v2 failed, reason: getaddrinfo ENOTFOUND api.monday.com
+    at ClientRequest.<anonymous> (E:\Monday.com\backend\node_modules\node-fetch\lib\index.js:1501:11)
+    at ClientRequest.emit (node:events:509:28)
+    at emitErrorEvent (node:_http_client:109:11)
+    at TLSSocket.socketErrorListener (node:_http_client:593:5)
+    at TLSSocket.emit (node:events:509:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  type: 'system',
+  errno: 'ENOTFOUND',
+  code: 'ENOTFOUND'
+}
