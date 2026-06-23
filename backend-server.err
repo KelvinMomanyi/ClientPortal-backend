@@ -105,3 +105,118 @@ Error fetching client dashboard: FetchError: request to https://api.monday.com/v
   errno: 'ENOTFOUND',
   code: 'ENOTFOUND'
 }
+Error executing Monday API query: FetchError: request to https://api.monday.com/v2 failed, reason: getaddrinfo ENOTFOUND api.monday.com
+    at ClientRequest.<anonymous> (E:\Monday.com\backend\node_modules\node-fetch\lib\index.js:1501:11)
+    at ClientRequest.emit (node:events:509:28)
+    at emitErrorEvent (node:_http_client:109:11)
+    at TLSSocket.socketErrorListener (node:_http_client:593:5)
+    at TLSSocket.emit (node:events:509:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  type: 'system',
+  errno: 'ENOTFOUND',
+  code: 'ENOTFOUND'
+}
+Error fetching client dashboard: FetchError: request to https://api.monday.com/v2 failed, reason: getaddrinfo ENOTFOUND api.monday.com
+    at ClientRequest.<anonymous> (E:\Monday.com\backend\node_modules\node-fetch\lib\index.js:1501:11)
+    at ClientRequest.emit (node:events:509:28)
+    at emitErrorEvent (node:_http_client:109:11)
+    at TLSSocket.socketErrorListener (node:_http_client:593:5)
+    at TLSSocket.emit (node:events:509:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  type: 'system',
+  errno: 'ENOTFOUND',
+  code: 'ENOTFOUND'
+}
+Error executing Monday API query: FetchError: request to https://api.monday.com/v2 failed, reason: getaddrinfo ENOTFOUND api.monday.com
+    at ClientRequest.<anonymous> (E:\Monday.com\backend\node_modules\node-fetch\lib\index.js:1501:11)
+    at ClientRequest.emit (node:events:509:28)
+    at emitErrorEvent (node:_http_client:109:11)
+    at TLSSocket.socketErrorListener (node:_http_client:593:5)
+    at TLSSocket.emit (node:events:509:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  type: 'system',
+  errno: 'ENOTFOUND',
+  code: 'ENOTFOUND'
+}
+Error fetching client dashboard: FetchError: request to https://api.monday.com/v2 failed, reason: getaddrinfo ENOTFOUND api.monday.com
+    at ClientRequest.<anonymous> (E:\Monday.com\backend\node_modules\node-fetch\lib\index.js:1501:11)
+    at ClientRequest.emit (node:events:509:28)
+    at emitErrorEvent (node:_http_client:109:11)
+    at TLSSocket.socketErrorListener (node:_http_client:593:5)
+    at TLSSocket.emit (node:events:509:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  type: 'system',
+  errno: 'ENOTFOUND',
+  code: 'ENOTFOUND'
+}
+Error executing Monday API query: FetchError: request to https://api.monday.com/v2 failed, reason: getaddrinfo ENOTFOUND api.monday.com
+    at ClientRequest.<anonymous> (E:\Monday.com\backend\node_modules\node-fetch\lib\index.js:1501:11)
+    at ClientRequest.emit (node:events:509:28)
+    at emitErrorEvent (node:_http_client:109:11)
+    at TLSSocket.socketErrorListener (node:_http_client:593:5)
+    at TLSSocket.emit (node:events:509:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  type: 'system',
+  errno: 'ENOTFOUND',
+  code: 'ENOTFOUND'
+}
+Error fetching client dashboard: FetchError: request to https://api.monday.com/v2 failed, reason: getaddrinfo ENOTFOUND api.monday.com
+    at ClientRequest.<anonymous> (E:\Monday.com\backend\node_modules\node-fetch\lib\index.js:1501:11)
+    at ClientRequest.emit (node:events:509:28)
+    at emitErrorEvent (node:_http_client:109:11)
+    at TLSSocket.socketErrorListener (node:_http_client:593:5)
+    at TLSSocket.emit (node:events:509:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  type: 'system',
+  errno: 'ENOTFOUND',
+  code: 'ENOTFOUND'
+}
+Error executing Monday API query: FetchError: request to https://api.monday.com/v2 failed, reason: getaddrinfo ENOTFOUND api.monday.com
+    at ClientRequest.<anonymous> (E:\Monday.com\backend\node_modules\node-fetch\lib\index.js:1501:11)
+    at ClientRequest.emit (node:events:509:28)
+    at emitErrorEvent (node:_http_client:109:11)
+    at TLSSocket.socketErrorListener (node:_http_client:593:5)
+    at TLSSocket.emit (node:events:509:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  type: 'system',
+  errno: 'ENOTFOUND',
+  code: 'ENOTFOUND'
+}
+Error fetching client dashboard: FetchError: request to https://api.monday.com/v2 failed, reason: getaddrinfo ENOTFOUND api.monday.com
+    at ClientRequest.<anonymous> (E:\Monday.com\backend\node_modules\node-fetch\lib\index.js:1501:11)
+    at ClientRequest.emit (node:events:509:28)
+    at emitErrorEvent (node:_http_client:109:11)
+    at TLSSocket.socketErrorListener (node:_http_client:593:5)
+    at TLSSocket.emit (node:events:509:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  type: 'system',
+  errno: 'ENOTFOUND',
+  code: 'ENOTFOUND'
+}
+Unhandled error: Error: Not allowed by CORS
+    at origin (E:\Monday.com\backend\src\app.js:19:23)
+    at E:\Monday.com\backend\node_modules\cors\lib\index.js:219:13
+    at optionsCallback (E:\Monday.com\backend\node_modules\cors\lib\index.js:199:9)
+    at corsMiddleware (E:\Monday.com\backend\node_modules\cors\lib\index.js:204:7)
+    at Layer.handleRequest (E:\Monday.com\backend\node_modules\router\lib\layer.js:152:17)
+    at trimPrefix (E:\Monday.com\backend\node_modules\router\index.js:342:13)
+    at E:\Monday.com\backend\node_modules\router\index.js:297:9
+    at processParams (E:\Monday.com\backend\node_modules\router\index.js:582:12)
+    at next (E:\Monday.com\backend\node_modules\router\index.js:291:5)
+    at router.handle (E:\Monday.com\backend\node_modules\router\index.js:186:3)
