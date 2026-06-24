@@ -2,7 +2,7 @@ const dotenv = require('dotenv');
 const { createApp } = require('../src/app');
 const { initDb } = require('../src/services/dbService');
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 let appPromise;
 

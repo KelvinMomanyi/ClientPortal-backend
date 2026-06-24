@@ -1,8 +1,12 @@
+const dotenv = require('dotenv');
 const express = require('express');
 const cors = require('cors');
 const authRoutes = require('./routes/authRoutes');
 const mondayRoutes = require('./routes/mondayRoutes');
 const { apiLimiter } = require('./middleware/rateLimiter');
+const { initDb } = require('./services/dbService');
+
+dotenv.config({ quiet: true });
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'http://localhost:5173',
@@ -25,6 +29,20 @@ function getAllowedOrigins() {
     ...DEFAULT_ALLOWED_ORIGINS,
     ...parseAllowedOrigins(process.env.ALLOWED_ORIGINS),
   ]);
+}
+
+let serverlessAppPromise;
+
+function getServerlessApp() {
+  if (!serverlessAppPromise) {
+    serverlessAppPromise = initDb().then(() => createApp());
+  }
+  return serverlessAppPromise;
+}
+
+async function handler(req, res) {
+  const app = await getServerlessApp();
+  return app(req, res);
 }
 
 function createApp() {
@@ -69,4 +87,7 @@ function createApp() {
   return app;
 }
 
-module.exports = { createApp, getAllowedOrigins, parseAllowedOrigins };
+module.exports = handler;
+module.exports.createApp = createApp;
+module.exports.getAllowedOrigins = getAllowedOrigins;
+module.exports.parseAllowedOrigins = parseAllowedOrigins;

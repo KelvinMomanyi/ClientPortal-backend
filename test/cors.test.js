@@ -1,7 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { createApp, parseAllowedOrigins } = require('../src/app');
+const appModule = require('../src/app');
+const { createApp, parseAllowedOrigins } = appModule;
 
 async function listen(app) {
   return new Promise((resolve) => {
@@ -46,4 +47,9 @@ test('configured CORS origins are trimmed and normalized', () => {
     parseAllowedOrigins(' https://example.com/, http://localhost:5173 '),
     ['https://example.com', 'http://localhost:5173']
   );
+});
+
+test('app module exports a callable serverless handler', () => {
+  assert.equal(typeof appModule, 'function');
+  assert.equal(typeof appModule.createApp, 'function');
 });
