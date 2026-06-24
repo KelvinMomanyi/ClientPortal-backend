@@ -31,21 +31,21 @@ function getAllowedOrigins() {
   ]);
 }
 
-let serverlessAppPromise;
+let serverlessApp;
 
 function getServerlessApp() {
-  if (!serverlessAppPromise) {
-    serverlessAppPromise = initDb().then(() => createApp());
+  if (!serverlessApp) {
+    serverlessApp = createApp({ ensureDatabase: true });
   }
-  return serverlessAppPromise;
+  return serverlessApp;
 }
 
 async function handler(req, res) {
-  const app = await getServerlessApp();
+  const app = getServerlessApp();
   return app(req, res);
 }
 
-function createApp() {
+function createApp({ ensureDatabase = false } = {}) {
   const app = express();
 
   const allowedOrigins = getAllowedOrigins();
@@ -60,6 +60,22 @@ function createApp() {
   }));
 
   app.use(express.json({ limit: '1mb' }));
+
+  if (ensureDatabase) {
+    app.use(async (req, res, next) => {
+      if (req.method === 'OPTIONS' || req.path === '/health' || req.path === '/api/health') {
+        return next();
+      }
+
+      try {
+        await initDb();
+        return next();
+      } catch (err) {
+        return next(err);
+      }
+    });
+  }
+
   app.use('/api', apiLimiter);
 
   app.use((req, res, next) => {

@@ -10,8 +10,9 @@ async function initDb() {
 
   db = await createDb();
 
-  // Create tables for the Marketplace Hybrid Architecture
-  await db.exec(`
+  try {
+    // Create tables for the Marketplace Hybrid Architecture
+    await db.exec(`
     CREATE TABLE IF NOT EXISTS accounts (
       monday_account_id INTEGER PRIMARY KEY,
       access_token TEXT NOT NULL,
@@ -53,9 +54,9 @@ async function initDb() {
     );
   `);
 
-  await ensureColumn('permissions', 'board_id', 'INTEGER');
+    await ensureColumn('permissions', 'board_id', 'INTEGER');
 
-  await db.exec(`
+    await db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_portals_unique
       ON portals (monday_account_id, client_id, board_id);
 
@@ -69,15 +70,36 @@ async function initDb() {
       ON rate_limits (reset_at);
   `);
 
-  console.log(`Database initialized successfully (${dbKind}).`);
-  return db;
+    console.log(`Database initialized successfully (${dbKind}).`);
+    return db;
+  } catch (err) {
+    const failedDb = db;
+    const failedDbKind = dbKind;
+    db = null;
+    dbKind = null;
+
+    if (failedDb && typeof failedDb.close === 'function') {
+      await failedDb.close();
+    }
+
+    throw normalizeDbInitError(err, failedDbKind);
+  }
 }
 
 async function createDb() {
   const tursoUrl = process.env.TURSO_DATABASE_URL || process.env.LIBSQL_URL;
-  const tursoAuthToken = process.env.TURSO_AUTH_TOKEN || process.env.LIBSQL_AUTH_TOKEN;
+  const tursoAuthToken =
+    process.env.TURSO_AUTH_TOKEN ||
+    process.env.LIBSQL_AUTH_TOKEN ||
+    process.env.TURSO_DATABASE_AUTH_TOKEN;
 
   if (tursoUrl) {
+    if (requiresAuthToken(tursoUrl) && !tursoAuthToken) {
+      throw new Error(
+        'Turso database auth token is missing. Set TURSO_AUTH_TOKEN in Vercel for the database in TURSO_DATABASE_URL.'
+      );
+    }
+
     dbKind = 'turso';
     const { createClient } = require('@libsql/client');
     const client = createClient({
@@ -94,6 +116,10 @@ async function createDb() {
     filename: process.env.DATABASE_FILE || path.join(__dirname, '../../database.sqlite'),
     driver: sqlite3.Database
   });
+}
+
+function requiresAuthToken(databaseUrl) {
+  return !databaseUrl.startsWith('file:') && databaseUrl !== ':memory:';
 }
 
 function createLibsqlAdapter(client) {
@@ -141,6 +167,23 @@ async function ensureColumn(tableName, columnName, definition) {
   }
 }
 
+function normalizeDbInitError(err, failedDbKind) {
+  if (failedDbKind === 'turso' && isUnauthorizedLibsqlError(err)) {
+    const configError = new Error(
+      'Turso database authentication failed with HTTP 401. Verify TURSO_DATABASE_URL points to the correct database and TURSO_AUTH_TOKEN is current for that database.'
+    );
+    configError.code = 'TURSO_AUTH_FAILED';
+    configError.cause = err;
+    return configError;
+  }
+
+  return err;
+}
+
+function isUnauthorizedLibsqlError(err) {
+  return err?.cause?.status === 401 || /HTTP status 401/i.test(err?.message || '');
+}
+
 function getDb() {
   if (!db) {
     throw new Error('Database not initialized');
@@ -159,5 +202,7 @@ async function closeDb() {
 module.exports = {
   initDb,
   getDb,
-  closeDb
+  closeDb,
+  requiresAuthToken,
+  normalizeDbInitError
 };
