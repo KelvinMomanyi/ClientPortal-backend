@@ -4,18 +4,38 @@ const authRoutes = require('./routes/authRoutes');
 const mondayRoutes = require('./routes/mondayRoutes');
 const { apiLimiter } = require('./middleware/rateLimiter');
 
+const DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'https://client-portal-seven-alpha.vercel.app',
+];
+
+function normalizeOrigin(origin) {
+  return origin.trim().replace(/\/+$/, '');
+}
+
+function parseAllowedOrigins(value) {
+  return (value || '')
+    .split(',')
+    .map(normalizeOrigin)
+    .filter(Boolean);
+}
+
+function getAllowedOrigins() {
+  return new Set([
+    ...DEFAULT_ALLOWED_ORIGINS,
+    ...parseAllowedOrigins(process.env.ALLOWED_ORIGINS),
+  ]);
+}
+
 function createApp() {
   const app = express();
 
-  const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+  const allowedOrigins = getAllowedOrigins();
 
   app.use(cors({
     origin(origin, callback) {
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
+      if (allowedOrigins.has(normalizeOrigin(origin))) return callback(null, true);
       return callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
@@ -49,4 +69,4 @@ function createApp() {
   return app;
 }
 
-module.exports = { createApp };
+module.exports = { createApp, getAllowedOrigins, parseAllowedOrigins };
