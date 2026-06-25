@@ -42,13 +42,45 @@ async function getBoardData(token, boardId) {
               }
               ... on FileValue {
                 files {
-                  id
-                  name
-                  url
-                  public_url
-                  url_thumbnail
-                  file_size
-                  uploaded_at
+                  __typename
+                  ... on FileAssetValue {
+                    asset_id
+                    name
+                    created_at
+                    asset {
+                      id
+                      name
+                      url
+                      public_url
+                      url_thumbnail
+                      file_size
+                      created_at
+                    }
+                  }
+                  ... on FileLinkValue {
+                    file_id
+                    name
+                    url
+                    created_at
+                  }
+                  ... on FileDocValue {
+                    file_id
+                    object_id
+                    url
+                    created_at
+                    doc {
+                      id
+                      object_id
+                      name
+                      url
+                    }
+                  }
+                  ... on FileAssetInvalidValue {
+                    asset_id
+                    name
+                    error
+                    created_at
+                  }
                 }
               }
             }
@@ -102,7 +134,7 @@ async function getItemUpdates(token, itemId) {
             public_url
             url_thumbnail
             file_size
-            uploaded_at
+            created_at
           }
         }
       }
@@ -158,13 +190,13 @@ function normalizeBoardData(data) {
 
 function normalizeAssets(assets) {
   return (assets || []).map((asset) => ({
-    id: String(asset.id || ''),
-    name: asset.name || 'Untitled file',
-    url: asset.public_url || asset.url || '',
-    public_url: asset.public_url || '',
-    url_thumbnail: asset.url_thumbnail || '',
-    file_size: asset.file_size || null,
-    uploaded_at: asset.uploaded_at || null,
+    id: String(asset.asset?.id || asset.doc?.id || asset.id || asset.asset_id || asset.file_id || asset.object_id || ''),
+    name: asset.asset?.name || asset.doc?.name || asset.name || 'Untitled file',
+    url: asset.asset?.public_url || asset.asset?.url || asset.doc?.url || asset.url || asset.public_url || '',
+    public_url: asset.asset?.public_url || asset.public_url || '',
+    url_thumbnail: asset.asset?.url_thumbnail || asset.url_thumbnail || '',
+    file_size: asset.asset?.file_size || asset.file_size || null,
+    uploaded_at: asset.asset?.created_at || asset.created_at || asset.uploaded_at || null,
   }));
 }
 
