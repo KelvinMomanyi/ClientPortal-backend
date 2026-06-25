@@ -5,6 +5,8 @@ const {
   assignBoardToClient,
   getClients,
   updateStatus,
+  getItemUpdates,
+  createClientItemUpdate,
   getAdminBoard,
   getClientPermissions,
   updateClientPermissions,
@@ -20,6 +22,8 @@ const { handleMondayWebhook } = require('../controllers/webhookController');
 // Client-facing routes (require client JWT)
 router.get('/dashboard', authenticate, getClientDashboard);
 router.post('/status-update', authenticate, updateStatus);
+router.get('/items/:itemId/updates', authenticate, getItemUpdates);
+router.post('/items/:itemId/updates', authenticate, createClientItemUpdate);
 router.post('/webhooks', handleMondayWebhook);
 
 // Admin routes (require admin authentication)

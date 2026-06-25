@@ -1,4 +1,9 @@
-const { getBoardData, updateItemStatus } = require('../services/mondayService');
+const {
+  getBoardData,
+  updateItemStatus,
+  getItemUpdates: getMondayItemUpdates,
+  createItemUpdate,
+} = require('../services/mondayService');
 const { getDb } = require('../services/dbService');
 const {
   getAllowedItemIds,
@@ -12,6 +17,26 @@ const crypto = require('crypto');
 
 function isValidPassword(password) {
   return typeof password === 'string' && password.length >= 8 && password.length <= 128;
+}
+
+function isValidComment(comment) {
+  return typeof comment === 'string' && comment.trim().length > 0 && comment.trim().length <= 5000;
+}
+
+function escapeHtml(value) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatClientUpdateBody(client, comment) {
+  const author = `${client.name || 'Client'}${client.email ? ` (${client.email})` : ''}`;
+  const safeAuthor = escapeHtml(author);
+  const safeComment = escapeHtml(comment.trim()).replace(/\r?\n/g, '<br>');
+  return `<p><strong>Client portal update from ${safeAuthor}</strong></p><p>${safeComment}</p>`;
 }
 
 async function getClientDashboard(req, res) {
@@ -121,6 +146,74 @@ async function updateStatus(req, res) {
     }
     console.error('Error updating status:', err);
     res.status(500).json({ error: 'Failed to update status on Monday.com' });
+  }
+}
+
+async function getItemUpdates(req, res) {
+  const { itemId } = req.params;
+  const { boardId } = req.query;
+  const { clientId, accountId } = req.user;
+
+  if (!boardId || !itemId) {
+    return res.status(400).json({ error: 'Board ID and Item ID are required.' });
+  }
+
+  try {
+    const db = getDb();
+    const account = await db.get('SELECT access_token FROM accounts WHERE monday_account_id = ?', [accountId]);
+    if (!account || !account.access_token) {
+      return res.status(500).json({ error: 'Internal setup error.' });
+    }
+
+    await assertClientCanAccessItem(clientId, accountId, boardId, itemId);
+    const updates = await getMondayItemUpdates(account.access_token, itemId);
+    return res.json({ updates });
+  } catch (err) {
+    if (err.statusCode) {
+      return res.status(err.statusCode).json({ error: err.message });
+    }
+    console.error('Error fetching item updates:', err);
+    return res.status(500).json({ error: 'Failed to fetch item updates.' });
+  }
+}
+
+async function createClientItemUpdate(req, res) {
+  const { itemId } = req.params;
+  const { boardId, body } = req.body;
+  const { clientId, accountId } = req.user;
+
+  if (!boardId || !itemId) {
+    return res.status(400).json({ error: 'Board ID and Item ID are required.' });
+  }
+
+  if (!isValidComment(body)) {
+    return res.status(400).json({ error: 'Comment must be between 1 and 5000 characters.' });
+  }
+
+  try {
+    const db = getDb();
+    const [account, client] = await Promise.all([
+      db.get('SELECT access_token FROM accounts WHERE monday_account_id = ?', [accountId]),
+      db.get('SELECT name, email FROM clients WHERE id = ? AND monday_account_id = ?', [clientId, accountId]),
+    ]);
+
+    if (!account || !account.access_token) {
+      return res.status(500).json({ error: 'Internal setup error.' });
+    }
+
+    if (!client) {
+      return res.status(404).json({ error: 'Client not found.' });
+    }
+
+    await assertClientCanAccessItem(clientId, accountId, boardId, itemId);
+    const update = await createItemUpdate(account.access_token, itemId, formatClientUpdateBody(client, body));
+    return res.json({ success: true, update });
+  } catch (err) {
+    if (err.statusCode) {
+      return res.status(err.statusCode).json({ error: err.message });
+    }
+    console.error('Error creating item update:', err);
+    return res.status(500).json({ error: 'Failed to post item update.' });
   }
 }
 
@@ -359,6 +452,8 @@ module.exports = {
   getClientDashboard,
   assignBoardToClient,
   updateStatus,
+  getItemUpdates,
+  createClientItemUpdate,
   getAdminBoard,
   getClientPermissions,
   updateClientPermissions,
@@ -366,5 +461,6 @@ module.exports = {
   createClient,
   updateClient,
   createInviteForClient,
-  deleteClient
+  deleteClient,
+  formatClientUpdateBody
 };
