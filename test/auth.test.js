@@ -106,8 +106,14 @@ test('client invite activation sets password and issues a token', async (t) => {
   t.after(() => closeDb());
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
 
-  const inviteResponse = await fetch(`${baseUrl}/api/auth/invites/${invite.token}`);
+  const inviteResponse = await fetch(`${baseUrl}/api/auth/invites/${invite.token}`, {
+    headers: { origin: 'https://client-portal-seven-alpha.vercel.app' },
+  });
   assert.equal(inviteResponse.status, 200);
+  assert.equal(
+    inviteResponse.headers.get('access-control-allow-origin'),
+    'https://client-portal-seven-alpha.vercel.app'
+  );
   const inviteBody = await inviteResponse.json();
   assert.equal(inviteBody.client.email, 'invited@example.com');
 
