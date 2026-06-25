@@ -1,5 +1,49 @@
 const jwt = require('jsonwebtoken');
 
+function firstDefined(...values) {
+  return values.find((value) => value !== undefined && value !== null && value !== '');
+}
+
+function getAdminIdentity(decoded) {
+  const accountId = firstDefined(
+    decoded.accountId,
+    decoded.account_id,
+    decoded.account?.id,
+    decoded.account?.accountId,
+    decoded.account?.account_id,
+    decoded.data?.accountId,
+    decoded.data?.account_id,
+    decoded.dat?.accountId,
+    decoded.dat?.account_id,
+    decoded.context?.accountId,
+    decoded.context?.account_id
+  );
+
+  const userId = firstDefined(
+    decoded.userId,
+    decoded.user_id,
+    decoded.user?.id,
+    decoded.user?.userId,
+    decoded.user?.user_id,
+    decoded.data?.userId,
+    decoded.data?.user_id,
+    decoded.dat?.userId,
+    decoded.dat?.user_id,
+    decoded.context?.userId,
+    decoded.context?.user_id
+  );
+
+  if (!accountId) {
+    return null;
+  }
+
+  return { accountId, userId };
+}
+
+function describePayloadShape(decoded) {
+  return Object.keys(decoded || {}).sort().join(', ');
+}
+
 /**
  * Admin authentication middleware.
  * Validates the requests coming from the Admin Dashboard running inside Monday.com.
@@ -30,14 +74,15 @@ function authenticateAdmin(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, clientSecret);
-    
-    // The seamless auth token contains accountId, userId, dataviewId, etc.
-    if (!decoded.accountId) {
-       return res.status(401).json({ error: 'Invalid token payload' });
+
+    const identity = getAdminIdentity(decoded);
+    if (!identity) {
+      console.error('Monday session token missing account id. Payload keys:', describePayloadShape(decoded));
+      return res.status(401).json({ error: 'Invalid token payload' });
     }
 
-    req.mondayAccountId = decoded.accountId;
-    req.mondayUserId = decoded.userId;
+    req.mondayAccountId = identity.accountId;
+    req.mondayUserId = identity.userId;
 
     return next();
   } catch (err) {
@@ -46,4 +91,4 @@ function authenticateAdmin(req, res, next) {
   }
 }
 
-module.exports = { authenticateAdmin };
+module.exports = { authenticateAdmin, getAdminIdentity };
