@@ -6,7 +6,13 @@ const {
   assertClientCanAccessItem,
   replaceClientItemPermissions,
 } = require('../services/permissionService');
+const { createClientInvite } = require('../services/inviteService');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+
+function isValidPassword(password) {
+  return typeof password === 'string' && password.length >= 8 && password.length <= 128;
+}
 
 async function getClientDashboard(req, res) {
   try {
@@ -203,14 +209,28 @@ async function getClients(req, res) {
     const db = getDb();
     
     const clients = await db.all(`
-      SELECT c.*, COUNT(p.id) as portal_count 
+      SELECT
+        c.*,
+        COUNT(DISTINCT p.id) as portal_count,
+        MAX(CASE WHEN i.used_at IS NULL THEN i.expires_at END) as latest_invite_expires_at
       FROM clients c 
       LEFT JOIN portals p ON c.id = p.client_id 
+      LEFT JOIN client_invites i ON i.client_id = c.id
       WHERE c.monday_account_id = ?
       GROUP BY c.id
     `, [accountId]);
     
-    const safeClients = clients.map(({ password_hash, ...client }) => client);
+    const now = Date.now();
+    const safeClients = clients.map(({ password_hash, latest_invite_expires_at, ...client }) => {
+      const inviteExpiresAt = latest_invite_expires_at ? Number(latest_invite_expires_at) : null;
+      const inviteStatus = inviteExpiresAt ? (inviteExpiresAt > now ? 'pending' : 'expired') : 'active';
+
+      return {
+        ...client,
+        invite_status: inviteStatus,
+        pending_invite_expires_at: inviteExpiresAt,
+      };
+    });
     res.json({ clients: safeClients });
   } catch (err) {
     console.error('Error fetching clients:', err);
@@ -222,18 +242,29 @@ async function createClient(req, res) {
   const { name, email, password } = req.body;
   const accountId = req.mondayAccountId;
 
-  if (!name || !email || !password) {
-    return res.status(400).json({ error: 'Name, email, and password are required' });
+  if (!name || !email) {
+    return res.status(400).json({ error: 'Name and email are required' });
+  }
+
+  if (password && !isValidPassword(password)) {
+    return res.status(400).json({ error: 'Password must be between 8 and 128 characters' });
   }
 
   try {
     const db = getDb();
-    const hash = await bcrypt.hash(password, 10);
+    const initialPassword = password || crypto.randomBytes(32).toString('hex');
+    const hash = await bcrypt.hash(initialPassword, 10);
     const result = await db.run(
       'INSERT INTO clients (monday_account_id, name, email, password_hash) VALUES (?, ?, ?, ?)',
       [accountId, name.trim(), email.trim().toLowerCase(), hash]
     );
-    res.json({ success: true, clientId: result.lastID });
+
+    if (!password) {
+      const invite = await createClientInvite(result.lastID, req);
+      return res.json({ success: true, clientId: result.lastID, invite });
+    }
+
+    return res.json({ success: true, clientId: result.lastID });
   } catch (err) {
     if (err.message.includes('UNIQUE constraint failed')) {
       return res.status(400).json({ error: 'Email already exists' });
@@ -250,6 +281,10 @@ async function updateClient(req, res) {
   
   if (!name || !email) {
     return res.status(400).json({ error: 'Name and email are required' });
+  }
+
+  if (password && !isValidPassword(password)) {
+    return res.status(400).json({ error: 'Password must be between 8 and 128 characters' });
   }
 
   try {
@@ -277,6 +312,25 @@ async function updateClient(req, res) {
   }
 }
 
+async function createInviteForClient(req, res) {
+  const { id } = req.params;
+  const accountId = req.mondayAccountId;
+
+  try {
+    const db = getDb();
+    const client = await db.get('SELECT id, name, email FROM clients WHERE id = ? AND monday_account_id = ?', [id, accountId]);
+    if (!client) {
+      return res.status(404).json({ error: 'Client not found or unowned' });
+    }
+
+    const invite = await createClientInvite(client.id, req);
+    return res.json({ success: true, client, invite });
+  } catch (err) {
+    console.error('Error creating client invite:', err);
+    return res.status(500).json({ error: 'Failed to create invite' });
+  }
+}
+
 async function deleteClient(req, res) {
   const { id } = req.params;
   const accountId = req.mondayAccountId;
@@ -291,6 +345,7 @@ async function deleteClient(req, res) {
 
     await db.run('DELETE FROM portals WHERE client_id = ? AND monday_account_id = ?', [id, accountId]);
     await db.run('DELETE FROM permissions WHERE client_id = ? AND monday_account_id = ?', [id, accountId]);
+    await db.run('DELETE FROM client_invites WHERE client_id = ?', [id]);
     await db.run('DELETE FROM clients WHERE id = ? AND monday_account_id = ?', [id, accountId]);
     
     res.json({ success: true });
@@ -310,5 +365,6 @@ module.exports = {
   getClients,
   createClient,
   updateClient,
+  createInviteForClient,
   deleteClient
 };

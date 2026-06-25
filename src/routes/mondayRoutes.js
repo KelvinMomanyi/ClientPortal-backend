@@ -10,6 +10,7 @@ const {
   updateClientPermissions,
   createClient,
   updateClient,
+  createInviteForClient,
   deleteClient,
 } = require('../controllers/mondayController');
 const { authenticate } = require('../middleware/authMiddleware');
@@ -28,6 +29,7 @@ router.get('/admin/boards/:boardId', authenticateAdmin, getAdminBoard);
 router.get('/clients/:id/permissions', authenticateAdmin, getClientPermissions);
 router.put('/clients/:id/permissions', authenticateAdmin, updateClientPermissions);
 router.post('/clients', authenticateAdmin, createClient);
+router.post('/clients/:id/invite', authenticateAdmin, createInviteForClient);
 router.put('/clients/:id', authenticateAdmin, updateClient);
 router.delete('/clients/:id', authenticateAdmin, deleteClient);
 

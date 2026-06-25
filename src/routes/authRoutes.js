@@ -1,10 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { loginClient } = require('../controllers/authController');
+const { loginClient, getInvite, activateClientInvite } = require('../controllers/authController');
 const { authLimiter } = require('../middleware/rateLimiter');
 
 // Rate-limited login
 router.post('/login', authLimiter, loginClient);
+router.get('/invites/:token', getInvite);
+router.post('/invites/:token/activate', authLimiter, activateClientInvite);
 
 // Monday OAuth Installation Flow
 const { install, callback } = require('../controllers/oauthController');

@@ -52,6 +52,16 @@ async function initDb() {
       count INTEGER NOT NULL,
       reset_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS client_invites (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER NOT NULL,
+      token_hash TEXT UNIQUE NOT NULL,
+      expires_at INTEGER NOT NULL,
+      used_at INTEGER,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (client_id) REFERENCES clients (id)
+    );
   `);
 
     await ensureColumn('permissions', 'board_id', 'INTEGER');
@@ -68,6 +78,12 @@ async function initDb() {
 
     CREATE INDEX IF NOT EXISTS idx_rate_limits_reset
       ON rate_limits (reset_at);
+
+    CREATE INDEX IF NOT EXISTS idx_client_invites_client
+      ON client_invites (client_id);
+
+    CREATE INDEX IF NOT EXISTS idx_client_invites_token
+      ON client_invites (token_hash);
   `);
 
     console.log(`Database initialized successfully (${dbKind}).`);
