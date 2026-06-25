@@ -33,6 +33,23 @@ function getAllowedOrigins() {
 
 let serverlessApp;
 
+function applyCorsHeaders(req, res) {
+  const origin = req.headers.origin;
+  if (!origin) return;
+
+  const allowedOrigins = getAllowedOrigins();
+  if (!allowedOrigins.has(normalizeOrigin(origin))) return;
+
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    req.headers['access-control-request-headers'] || 'Content-Type,Authorization'
+  );
+}
+
 function getServerlessApp() {
   if (!serverlessApp) {
     serverlessApp = createApp({ ensureDatabase: true });
@@ -41,6 +58,12 @@ function getServerlessApp() {
 }
 
 async function handler(req, res) {
+  applyCorsHeaders(req, res);
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    return res.end();
+  }
+
   const app = getServerlessApp();
   return app(req, res);
 }
@@ -107,3 +130,4 @@ module.exports = handler;
 module.exports.createApp = createApp;
 module.exports.getAllowedOrigins = getAllowedOrigins;
 module.exports.parseAllowedOrigins = parseAllowedOrigins;
+module.exports.applyCorsHeaders = applyCorsHeaders;

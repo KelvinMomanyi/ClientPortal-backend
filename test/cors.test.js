@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const http = require('node:http');
 
 const appModule = require('../src/app');
 const { createApp, parseAllowedOrigins } = appModule;
@@ -8,6 +9,15 @@ const { closeDb } = require('../src/services/dbService');
 async function listen(app) {
   return new Promise((resolve) => {
     const server = app.listen(0, () => resolve(server));
+  });
+}
+
+async function listenHandler(handler) {
+  return new Promise((resolve) => {
+    const server = http.createServer((req, res) => {
+      void handler(req, res);
+    });
+    server.listen(0, () => resolve(server));
   });
 }
 
@@ -98,4 +108,26 @@ test('serverless CORS preflight does not require database initialization', async
     response.headers.get('access-control-allow-origin'),
     'https://client-portal-seven-alpha.vercel.app'
   );
+});
+
+test('serverless handler answers API preflight before app routing', async (t) => {
+  const server = await listenHandler(appModule);
+  t.after(() => server.close());
+
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const response = await fetch(`${baseUrl}/api/monday/clients`, {
+    method: 'OPTIONS',
+    headers: {
+      Origin: 'https://client-portal-seven-alpha.vercel.app',
+      'Access-Control-Request-Method': 'GET',
+      'Access-Control-Request-Headers': 'authorization',
+    },
+  });
+
+  assert.equal(response.status, 204);
+  assert.equal(
+    response.headers.get('access-control-allow-origin'),
+    'https://client-portal-seven-alpha.vercel.app'
+  );
+  assert.equal(response.headers.get('access-control-allow-headers'), 'authorization');
 });
