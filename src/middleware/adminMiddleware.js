@@ -37,7 +37,7 @@ function getAdminIdentity(decoded) {
     return null;
   }
 
-  return { accountId, userId };
+  return { accountId: String(accountId), userId: userId ? String(userId) : undefined };
 }
 
 function describePayloadShape(decoded) {

@@ -177,3 +177,52 @@ test('admin can create a client invite without setting a password', async (t) =>
   const pendingInvite = await db.get('SELECT * FROM client_invites WHERE client_id = ? AND used_at IS NULL', [client.id]);
   assert.equal(typeof pendingInvite.token_hash, 'string');
 });
+
+test('admin routes work with string Monday account ids', async (t) => {
+  await resetDb();
+  const db = getDb();
+  await db.run(
+    'INSERT INTO accounts (monday_account_id, access_token, subscription_status) VALUES (?, ?, ?)',
+    ['1001', 'token', 'active']
+  );
+  const passwordHash = await bcrypt.hash('password123', 4);
+  const clientResult = await db.run(
+    'INSERT INTO clients (monday_account_id, name, email, password_hash) VALUES (?, ?, ?, ?)',
+    ['1001', 'Admin Route Client', 'admin-route@example.com', passwordHash]
+  );
+
+  const server = await listen(createApp());
+  t.after(() => server.close());
+  t.after(() => closeDb());
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const headers = {
+    authorization: 'Bearer test-admin-token',
+    'content-type': 'application/json',
+    origin: 'https://client-portal-seven-alpha.vercel.app',
+  };
+
+  const assignResponse = await fetch(`${baseUrl}/api/monday/admin/assign`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ clientId: clientResult.lastID, boardId: 98765 }),
+  });
+  assert.equal(assignResponse.status, 200);
+
+  const permissionsResponse = await fetch(
+    `${baseUrl}/api/monday/clients/${clientResult.lastID}/permissions?boardId=98765`,
+    { headers }
+  );
+  assert.equal(permissionsResponse.status, 200);
+
+  const inviteResponse = await fetch(`${baseUrl}/api/monday/clients/${clientResult.lastID}/invite`, {
+    method: 'POST',
+    headers,
+  });
+  assert.equal(inviteResponse.status, 200);
+
+  const deleteResponse = await fetch(`${baseUrl}/api/monday/clients/${clientResult.lastID}`, {
+    method: 'DELETE',
+    headers,
+  });
+  assert.equal(deleteResponse.status, 200);
+});
