@@ -57,6 +57,15 @@ function getServerlessApp() {
   return serverlessApp;
 }
 
+function applySecurityHeaders(req, res, next) {
+  res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
+  return next();
+}
+
 async function handler(req, res) {
   applyCorsHeaders(req, res);
   if (req.method === 'OPTIONS') {
@@ -70,6 +79,8 @@ async function handler(req, res) {
 
 function createApp({ ensureDatabase = false } = {}) {
   const app = express();
+
+  app.use(applySecurityHeaders);
 
   const allowedOrigins = getAllowedOrigins();
 
@@ -86,7 +97,13 @@ function createApp({ ensureDatabase = false } = {}) {
 
   if (ensureDatabase) {
     app.use(async (req, res, next) => {
-      if (req.method === 'OPTIONS' || req.path === '/health' || req.path === '/api/health') {
+      if (
+        req.method === 'OPTIONS' ||
+        req.path === '/health' ||
+        req.path === '/api/health' ||
+        req.path === '/monday-app-association.json' ||
+        req.path === '/api/monday-app-association.json'
+      ) {
         return next();
       }
 
@@ -113,6 +130,16 @@ function createApp({ ensureDatabase = false } = {}) {
   app.use('/api/auth', authRoutes);
   app.use('/api/monday', mondayRoutes);
 
+  app.get(['/monday-app-association.json', '/api/monday-app-association.json'], (req, res) => {
+    if (!process.env.MONDAY_CLIENT_ID) {
+      return res.status(500).json({ error: 'MONDAY_CLIENT_ID is not configured' });
+    }
+
+    return res.status(200).json({
+      apps: [{ clientID: String(process.env.MONDAY_CLIENT_ID) }],
+    });
+  });
+
   app.get(['/health', '/api/health'], (req, res) => {
     res.status(200).json({ status: 'ok', uptime: process.uptime() });
   });
@@ -131,3 +158,4 @@ module.exports.createApp = createApp;
 module.exports.getAllowedOrigins = getAllowedOrigins;
 module.exports.parseAllowedOrigins = parseAllowedOrigins;
 module.exports.applyCorsHeaders = applyCorsHeaders;
+module.exports.applySecurityHeaders = applySecurityHeaders;

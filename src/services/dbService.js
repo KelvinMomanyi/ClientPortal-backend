@@ -64,6 +64,11 @@ async function initDb() {
     );
   `);
 
+    await ensureColumn('accounts', 'token_encrypted_at', 'INTEGER');
+    await ensureColumn('clients', 'name_encrypted', 'TEXT');
+    await ensureColumn('clients', 'email_encrypted', 'TEXT');
+    await ensureColumn('clients', 'email_hash', 'TEXT');
+    await ensureColumn('clients', 'pii_encrypted_at', 'INTEGER');
     await ensureColumn('permissions', 'board_id', 'INTEGER');
 
     await db.exec(`
@@ -84,7 +89,13 @@ async function initDb() {
 
     CREATE INDEX IF NOT EXISTS idx_client_invites_token
       ON client_invites (token_hash);
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_account_email_hash
+      ON clients (monday_account_id, email_hash);
   `);
+
+    const { migrateSensitiveData } = require('./privacyMigrationService');
+    await migrateSensitiveData(db);
 
     console.log(`Database initialized successfully (${dbKind}).`);
     return db;

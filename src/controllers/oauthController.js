@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { getDb } = require('../services/dbService');
+const { encryptString } = require('../services/cryptoService');
 
 async function install(req, res) {
   const clientId = process.env.MONDAY_CLIENT_ID;
@@ -34,6 +35,7 @@ async function callback(req, res) {
     });
 
     const accessToken = tokenResponse.data.access_token;
+    const storedAccessToken = encryptString(accessToken);
     
     // We need to fetch the account_id associated with this token using Monday API
     const meResponse = await axios.post('https://api.monday.com/v2', {
@@ -57,9 +59,15 @@ async function callback(req, res) {
     // Store or update account in the database
     const exists = await db.get('SELECT * FROM accounts WHERE monday_account_id = ?', [accountId]);
     if (exists) {
-      await db.run('UPDATE accounts SET access_token = ?, subscription_status = ? WHERE monday_account_id = ?', [accessToken, 'active', accountId]);
+      await db.run(
+        'UPDATE accounts SET access_token = ?, subscription_status = ?, token_encrypted_at = ? WHERE monday_account_id = ?',
+        [storedAccessToken, 'active', storedAccessToken === accessToken ? null : Date.now(), accountId]
+      );
     } else {
-      await db.run('INSERT INTO accounts (monday_account_id, access_token, subscription_status) VALUES (?, ?, ?)', [accountId, accessToken, 'active']);
+      await db.run(
+        'INSERT INTO accounts (monday_account_id, access_token, subscription_status, token_encrypted_at) VALUES (?, ?, ?, ?)',
+        [accountId, storedAccessToken, 'active', storedAccessToken === accessToken ? null : Date.now()]
+      );
     }
 
     res.send('Installation successful! You can configure the application within Monday.com now.');

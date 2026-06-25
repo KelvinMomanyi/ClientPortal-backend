@@ -12,6 +12,15 @@ const {
   replaceClientItemPermissions,
 } = require('../services/permissionService');
 const { createClientInvite } = require('../services/inviteService');
+const { decryptString } = require('../services/cryptoService');
+const {
+  buildClientStorage,
+  getClientById,
+  isValidEmail,
+  normalizeEmail,
+  normalizeName,
+  toPublicClient,
+} = require('../services/clientDataService');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
@@ -65,7 +74,7 @@ async function getClientDashboard(req, res) {
       return res.json({ boards: [] });
     }
 
-    const token = account.access_token;
+    const token = decryptString(account.access_token);
     const boardsData = [];
     for (const portal of portals) {
       console.log(`Fetching data for Board ID: ${portal.board_id}`);
@@ -95,7 +104,7 @@ async function assignBoardToClient(req, res) {
   try {
     const db = getDb();
     // Check if client exists and belongs to this account
-    const client = await db.get('SELECT * FROM clients WHERE id = ? AND monday_account_id = ?', [clientId, accountId]);
+    const client = await getClientById(db, clientId, accountId);
     if (!client) {
       return res.status(404).json({ error: 'Client not found or belongs to a different account.' });
     }
@@ -138,7 +147,7 @@ async function updateStatus(req, res) {
     }
 
     await assertClientCanAccessItem(clientId, accountId, boardId, itemId);
-    await updateItemStatus(account.access_token, boardId, itemId, resolvedColumnId, status);
+    await updateItemStatus(decryptString(account.access_token), boardId, itemId, resolvedColumnId, status);
     res.json({ success: true, columnUpdated: resolvedColumnId });
   } catch (err) {
     if (err.statusCode) {
@@ -166,7 +175,7 @@ async function getItemUpdates(req, res) {
     }
 
     await assertClientCanAccessItem(clientId, accountId, boardId, itemId);
-    const updates = await getMondayItemUpdates(account.access_token, itemId);
+    const updates = await getMondayItemUpdates(decryptString(account.access_token), itemId);
     return res.json({ updates });
   } catch (err) {
     if (err.statusCode) {
@@ -194,7 +203,7 @@ async function createClientItemUpdate(req, res) {
     const db = getDb();
     const [account, client] = await Promise.all([
       db.get('SELECT access_token FROM accounts WHERE monday_account_id = ?', [accountId]),
-      db.get('SELECT name, email FROM clients WHERE id = ? AND monday_account_id = ?', [clientId, accountId]),
+      getClientById(db, clientId, accountId),
     ]);
 
     if (!account || !account.access_token) {
@@ -206,7 +215,7 @@ async function createClientItemUpdate(req, res) {
     }
 
     await assertClientCanAccessItem(clientId, accountId, boardId, itemId);
-    const update = await createItemUpdate(account.access_token, itemId, formatClientUpdateBody(client, body));
+    const update = await createItemUpdate(decryptString(account.access_token), itemId, formatClientUpdateBody(client, body));
     return res.json({ success: true, update });
   } catch (err) {
     if (err.statusCode) {
@@ -232,7 +241,7 @@ async function getAdminBoard(req, res) {
       return res.status(500).json({ error: 'Monday account integration not found.' });
     }
 
-    const data = await getBoardData(account.access_token, boardId);
+    const data = await getBoardData(decryptString(account.access_token), boardId);
     res.json({ board: data?.boards?.[0] || null });
   } catch (err) {
     console.error('Error fetching admin board:', err);
@@ -314,12 +323,13 @@ async function getClients(req, res) {
     `, [accountId]);
     
     const now = Date.now();
-    const safeClients = clients.map(({ password_hash, latest_invite_expires_at, ...client }) => {
+    const safeClients = clients.map(({ latest_invite_expires_at, ...client }) => {
       const inviteExpiresAt = latest_invite_expires_at ? Number(latest_invite_expires_at) : null;
       const inviteStatus = inviteExpiresAt ? (inviteExpiresAt > now ? 'pending' : 'expired') : 'active';
+      const publicClient = toPublicClient(client);
 
       return {
-        ...client,
+        ...publicClient,
         invite_status: inviteStatus,
         pending_invite_expires_at: inviteExpiresAt,
       };
@@ -335,8 +345,15 @@ async function createClient(req, res) {
   const { name, email, password } = req.body;
   const accountId = req.mondayAccountId;
 
-  if (!name || !email) {
+  const cleanName = normalizeName(name);
+  const cleanEmail = normalizeEmail(email);
+
+  if (!cleanName || !cleanEmail) {
     return res.status(400).json({ error: 'Name and email are required' });
+  }
+
+  if (!isValidEmail(cleanEmail)) {
+    return res.status(400).json({ error: 'Invalid email format' });
   }
 
   if (password && !isValidPassword(password)) {
@@ -347,9 +364,21 @@ async function createClient(req, res) {
     const db = getDb();
     const initialPassword = password || crypto.randomBytes(32).toString('hex');
     const hash = await bcrypt.hash(initialPassword, 10);
+    const storage = buildClientStorage(accountId, cleanName, cleanEmail);
     const result = await db.run(
-      'INSERT INTO clients (monday_account_id, name, email, password_hash) VALUES (?, ?, ?, ?)',
-      [accountId, name.trim(), email.trim().toLowerCase(), hash]
+      `INSERT INTO clients
+        (monday_account_id, name, email, password_hash, name_encrypted, email_encrypted, email_hash, pii_encrypted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        accountId,
+        storage.name,
+        storage.email,
+        hash,
+        storage.name_encrypted,
+        storage.email_encrypted,
+        storage.email_hash,
+        storage.pii_encrypted_at,
+      ]
     );
 
     if (!password) {
@@ -372,8 +401,15 @@ async function updateClient(req, res) {
   const { name, email, password } = req.body;
   const accountId = req.mondayAccountId;
   
-  if (!name || !email) {
+  const cleanName = normalizeName(name);
+  const cleanEmail = normalizeEmail(email);
+
+  if (!cleanName || !cleanEmail) {
     return res.status(400).json({ error: 'Name and email are required' });
+  }
+
+  if (!isValidEmail(cleanEmail)) {
+    return res.status(400).json({ error: 'Invalid email format' });
   }
 
   if (password && !isValidPassword(password)) {
@@ -382,17 +418,41 @@ async function updateClient(req, res) {
 
   try {
     const db = getDb();
+    const storage = buildClientStorage(accountId, cleanName, cleanEmail);
     
     if (password) {
       const hash = await bcrypt.hash(password, 10);
       await db.run(
-        'UPDATE clients SET name = ?, email = ?, password_hash = ? WHERE id = ? AND monday_account_id = ?',
-        [name.trim(), email.trim().toLowerCase(), hash, id, accountId]
+        `UPDATE clients
+         SET name = ?, email = ?, password_hash = ?, name_encrypted = ?, email_encrypted = ?, email_hash = ?, pii_encrypted_at = ?
+         WHERE id = ? AND monday_account_id = ?`,
+        [
+          storage.name,
+          storage.email,
+          hash,
+          storage.name_encrypted,
+          storage.email_encrypted,
+          storage.email_hash,
+          storage.pii_encrypted_at,
+          id,
+          accountId,
+        ]
       );
     } else {
       await db.run(
-        'UPDATE clients SET name = ?, email = ? WHERE id = ? AND monday_account_id = ?',
-        [name.trim(), email.trim().toLowerCase(), id, accountId]
+        `UPDATE clients
+         SET name = ?, email = ?, name_encrypted = ?, email_encrypted = ?, email_hash = ?, pii_encrypted_at = ?
+         WHERE id = ? AND monday_account_id = ?`,
+        [
+          storage.name,
+          storage.email,
+          storage.name_encrypted,
+          storage.email_encrypted,
+          storage.email_hash,
+          storage.pii_encrypted_at,
+          id,
+          accountId,
+        ]
       );
     }
     res.json({ success: true });
@@ -411,7 +471,7 @@ async function createInviteForClient(req, res) {
 
   try {
     const db = getDb();
-    const client = await db.get('SELECT id, name, email FROM clients WHERE id = ? AND monday_account_id = ?', [id, accountId]);
+    const client = await getClientById(db, id, accountId);
     if (!client) {
       return res.status(404).json({ error: 'Client not found or unowned' });
     }

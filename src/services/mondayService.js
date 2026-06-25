@@ -1,8 +1,21 @@
 const mondaySdk = require('monday-sdk-js');
+const { redact } = require('./cryptoService');
 
 const monday = mondaySdk();
 
-function buildBoardQuery(includeFiles = true) {
+function getItemsPageLimit() {
+  const configured = Number(process.env.MONDAY_ITEMS_PAGE_LIMIT || 500);
+  if (!Number.isFinite(configured)) return 500;
+  return Math.max(1, Math.min(Math.floor(configured), 500));
+}
+
+function getMaxBoardPages() {
+  const configured = Number(process.env.MONDAY_MAX_BOARD_PAGES || 20);
+  if (!Number.isFinite(configured)) return 20;
+  return Math.max(1, Math.min(Math.floor(configured), 100));
+}
+
+function buildItemFields(includeFiles = true) {
   const fileFields = includeFiles
     ? `
               ... on FileValue {
@@ -51,12 +64,6 @@ function buildBoardQuery(includeFiles = true) {
     : '';
 
   return `
-    query getBoard($boardId: [ID!]) {
-      boards(ids: $boardId) {
-         id
-         name
-         items_page {
-          items {
             id
             name
             column_values {
@@ -68,7 +75,19 @@ function buildBoardQuery(includeFiles = true) {
                 title
               }
 ${fileFields}
-            }
+            }`;
+}
+
+function buildBoardQuery(includeFiles = true) {
+  return `
+    query getBoard($boardId: [ID!], $limit: Int!) {
+      boards(ids: $boardId) {
+         id
+         name
+         items_page(limit: $limit) {
+          cursor
+          items {
+${buildItemFields(includeFiles)}
           }
          }
       }
@@ -76,9 +95,22 @@ ${fileFields}
   `;
 }
 
+function buildNextItemsPageQuery(includeFiles = true) {
+  return `
+    query getNextItemsPage($cursor: String!) {
+      next_items_page(cursor: $cursor) {
+        cursor
+        items {
+${buildItemFields(includeFiles)}
+        }
+      }
+    }
+  `;
+}
+
 async function executeMondayQuery(token, query, variables = {}) {
   // Diagnostic logging (masked for security)
-  const maskedToken = token ? `${token.substring(0, 4)}...${token.substring(token.length - 4)}` : 'MISSING';
+  const maskedToken = redact(token);
   console.log(`Executing Monday Query with token: ${maskedToken}`);
   console.log(`Query: ${query.substring(0, 100)}...`);
 
@@ -101,16 +133,59 @@ async function executeMondayQuery(token, query, variables = {}) {
 async function getBoardData(token, boardId) {
   let data;
   try {
-    data = await executeMondayQuery(token, buildBoardQuery(true), { boardId: parseInt(boardId) });
+    data = await fetchBoardData(token, boardId, true);
   } catch (err) {
     if (!isFileQuerySchemaError(err)) {
       throw err;
     }
 
     console.warn('Monday file column query failed; retrying board query without file details.', err.message);
-    data = await executeMondayQuery(token, buildBoardQuery(false), { boardId: parseInt(boardId) });
+    data = await fetchBoardData(token, boardId, false);
   }
   return normalizeBoardData(data);
+}
+
+async function fetchBoardData(token, boardId, includeFiles) {
+  const limit = getItemsPageLimit();
+  const maxPages = getMaxBoardPages();
+  const data = await executeMondayQuery(token, buildBoardQuery(includeFiles), {
+    boardId: parseInt(boardId),
+    limit,
+  });
+
+  const board = data?.boards?.[0];
+  if (!board?.items_page?.cursor) {
+    return data;
+  }
+
+  const items = [...(board.items_page.items || [])];
+  let cursor = board.items_page.cursor;
+  let pageCount = 1;
+
+  while (cursor && pageCount < maxPages) {
+    const nextPageData = await executeMondayQuery(token, buildNextItemsPageQuery(includeFiles), { cursor });
+    const nextPage = nextPageData?.next_items_page;
+    items.push(...(nextPage?.items || []));
+    cursor = nextPage?.cursor || null;
+    pageCount += 1;
+  }
+
+  return {
+    ...data,
+    boards: data.boards.map((currentBoard, index) =>
+      index === 0
+        ? {
+            ...currentBoard,
+            items_page: {
+              ...(currentBoard.items_page || {}),
+              cursor,
+              items,
+              truncated: Boolean(cursor),
+            },
+          }
+        : currentBoard
+    ),
+  };
 }
 
 async function updateItemStatus(token, boardId, itemId, columnId, label) {
@@ -263,7 +338,11 @@ module.exports = {
   updateItemStatus,
   getItemUpdates,
   createItemUpdate,
+  buildNextItemsPageQuery,
   buildBoardQuery,
+  fetchBoardData,
+  getItemsPageLimit,
+  getMaxBoardPages,
   normalizeBoardData,
   normalizeAssets,
   normalizeUpdates,

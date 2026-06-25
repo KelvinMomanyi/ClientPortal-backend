@@ -60,6 +60,30 @@ test('configured CORS origins are trimmed and normalized', () => {
   );
 });
 
+test('security headers and monday association JSON are served without database setup', async (t) => {
+  const originalClientId = process.env.MONDAY_CLIENT_ID;
+  process.env.MONDAY_CLIENT_ID = '123-test-client';
+
+  const server = await listen(createApp({ ensureDatabase: true }));
+  t.after(async () => {
+    server.close();
+    await closeDb();
+    if (originalClientId === undefined) {
+      delete process.env.MONDAY_CLIENT_ID;
+    } else {
+      process.env.MONDAY_CLIENT_ID = originalClientId;
+    }
+  });
+
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const response = await fetch(`${baseUrl}/monday-app-association.json`);
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('strict-transport-security'), 'max-age=63072000; includeSubDomains; preload');
+  assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+  assert.deepEqual(await response.json(), { apps: [{ clientID: '123-test-client' }] });
+});
+
 test('app module exports a callable serverless handler', () => {
   assert.equal(typeof appModule, 'function');
   assert.equal(typeof appModule.createApp, 'function');

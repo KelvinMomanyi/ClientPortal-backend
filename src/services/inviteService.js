@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { getDb } = require('./dbService');
+const { toPublicClient } = require('./clientDataService');
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -50,7 +51,7 @@ async function getValidInvite(token) {
   const db = getDb();
   const tokenHash = hashInviteToken(token);
   const invite = await db.get(
-    `SELECT i.*, c.name, c.email, c.monday_account_id
+    `SELECT i.*, c.id as client_row_id, c.name, c.email, c.name_encrypted, c.email_encrypted, c.email_hash, c.pii_encrypted_at, c.monday_account_id
      FROM client_invites i
      JOIN clients c ON c.id = i.client_id
      WHERE i.token_hash = ?`,
@@ -61,7 +62,22 @@ async function getValidInvite(token) {
     return null;
   }
 
-  return invite;
+  const client = toPublicClient({
+    id: invite.client_row_id,
+    name: invite.name,
+    email: invite.email,
+    name_encrypted: invite.name_encrypted,
+    email_encrypted: invite.email_encrypted,
+    email_hash: invite.email_hash,
+    pii_encrypted_at: invite.pii_encrypted_at,
+    monday_account_id: invite.monday_account_id,
+  });
+
+  return {
+    ...invite,
+    name: client.name,
+    email: client.email,
+  };
 }
 
 async function activateInvite(token, password) {

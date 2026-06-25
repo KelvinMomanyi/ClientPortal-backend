@@ -3,6 +3,9 @@ const assert = require('node:assert/strict');
 
 const {
   buildBoardQuery,
+  buildNextItemsPageQuery,
+  getItemsPageLimit,
+  getMaxBoardPages,
   isFileQuerySchemaError,
   normalizeAssets,
   normalizeBoardData,
@@ -171,6 +174,8 @@ test('buildBoardQuery can omit optional file fragments for schema fallback', () 
   const queryWithFiles = buildBoardQuery(true);
   const queryWithoutFiles = buildBoardQuery(false);
 
+  assert.match(queryWithFiles, /items_page\(limit: \$limit\)/);
+  assert.match(queryWithFiles, /\$limit: Int!/);
   assert.match(queryWithFiles, /FileAssetValue/);
   assert.match(queryWithFiles, /asset_value_name: name/);
   assert.match(queryWithFiles, /FileLinkValue/);
@@ -180,6 +185,37 @@ test('buildBoardQuery can omit optional file fragments for schema fallback', () 
   assert.doesNotMatch(queryWithoutFiles, /FileAssetValue/);
   assert.doesNotMatch(queryWithoutFiles, /files\s*\{/);
   assert.match(queryWithoutFiles, /column_values/);
+});
+
+test('buildNextItemsPageQuery uses cursor pagination for large boards', () => {
+  const query = buildNextItemsPageQuery(false);
+
+  assert.match(query, /next_items_page\(cursor: \$cursor\)/);
+  assert.match(query, /cursor/);
+  assert.match(query, /items/);
+  assert.doesNotMatch(query, /FileAssetValue/);
+});
+
+test('Monday pagination limits are bounded for review-safe board loading', () => {
+  const oldLimit = process.env.MONDAY_ITEMS_PAGE_LIMIT;
+  const oldPages = process.env.MONDAY_MAX_BOARD_PAGES;
+  process.env.MONDAY_ITEMS_PAGE_LIMIT = '9999';
+  process.env.MONDAY_MAX_BOARD_PAGES = '9999';
+
+  assert.equal(getItemsPageLimit(), 500);
+  assert.equal(getMaxBoardPages(), 100);
+
+  if (oldLimit === undefined) {
+    delete process.env.MONDAY_ITEMS_PAGE_LIMIT;
+  } else {
+    process.env.MONDAY_ITEMS_PAGE_LIMIT = oldLimit;
+  }
+
+  if (oldPages === undefined) {
+    delete process.env.MONDAY_MAX_BOARD_PAGES;
+  } else {
+    process.env.MONDAY_MAX_BOARD_PAGES = oldPages;
+  }
 });
 
 test('isFileQuerySchemaError identifies Monday file fragment schema errors only', () => {

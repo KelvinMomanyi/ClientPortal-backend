@@ -16,7 +16,7 @@ const {
   deleteClient,
 } = require('../controllers/mondayController');
 const { authenticate } = require('../middleware/authMiddleware');
-const { authenticateAdmin } = require('../middleware/adminMiddleware');
+const { authenticateAdmin, requireAdminWrite } = require('../middleware/adminMiddleware');
 const { handleMondayWebhook } = require('../controllers/webhookController');
 
 // Client-facing routes (require client JWT)
@@ -28,13 +28,13 @@ router.post('/webhooks', handleMondayWebhook);
 
 // Admin routes (require admin authentication)
 router.get('/clients', authenticateAdmin, getClients);
-router.post('/admin/assign', authenticateAdmin, assignBoardToClient);
+router.post('/admin/assign', authenticateAdmin, requireAdminWrite, assignBoardToClient);
 router.get('/admin/boards/:boardId', authenticateAdmin, getAdminBoard);
 router.get('/clients/:id/permissions', authenticateAdmin, getClientPermissions);
-router.put('/clients/:id/permissions', authenticateAdmin, updateClientPermissions);
-router.post('/clients', authenticateAdmin, createClient);
-router.post('/clients/:id/invite', authenticateAdmin, createInviteForClient);
-router.put('/clients/:id', authenticateAdmin, updateClient);
-router.delete('/clients/:id', authenticateAdmin, deleteClient);
+router.put('/clients/:id/permissions', authenticateAdmin, requireAdminWrite, updateClientPermissions);
+router.post('/clients', authenticateAdmin, requireAdminWrite, createClient);
+router.post('/clients/:id/invite', authenticateAdmin, requireAdminWrite, createInviteForClient);
+router.put('/clients/:id', authenticateAdmin, requireAdminWrite, updateClient);
+router.delete('/clients/:id', authenticateAdmin, requireAdminWrite, deleteClient);
 
 module.exports = router;

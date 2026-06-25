@@ -33,11 +33,26 @@ function getAdminIdentity(decoded) {
     decoded.context?.user_id
   );
 
+  const isViewOnly = firstDefined(
+    decoded.isViewOnly,
+    decoded.is_view_only,
+    decoded.data?.isViewOnly,
+    decoded.data?.is_view_only,
+    decoded.dat?.isViewOnly,
+    decoded.dat?.is_view_only,
+    decoded.context?.isViewOnly,
+    decoded.context?.is_view_only
+  );
+
   if (!accountId) {
     return null;
   }
 
-  return { accountId: String(accountId), userId: userId ? String(userId) : undefined };
+  return {
+    accountId: String(accountId),
+    userId: userId ? String(userId) : undefined,
+    isViewOnly: isViewOnly === true || isViewOnly === 'true',
+  };
 }
 
 function describePayloadShape(decoded) {
@@ -64,6 +79,7 @@ function authenticateAdmin(req, res, next) {
   if (process.env.NODE_ENV !== 'production' && localAdminToken && token === localAdminToken) {
     req.mondayAccountId = Number(process.env.LOCAL_ADMIN_ACCOUNT_ID || process.env.MONDAY_TEST_ACCOUNT_ID || 123456789);
     req.mondayUserId = 'local-dev';
+    req.mondayIsViewOnly = false;
     return next();
   }
 
@@ -83,6 +99,7 @@ function authenticateAdmin(req, res, next) {
 
     req.mondayAccountId = identity.accountId;
     req.mondayUserId = identity.userId;
+    req.mondayIsViewOnly = identity.isViewOnly;
 
     return next();
   } catch (err) {
@@ -91,4 +108,14 @@ function authenticateAdmin(req, res, next) {
   }
 }
 
-module.exports = { authenticateAdmin, getAdminIdentity };
+function requireAdminWrite(req, res, next) {
+  if (req.mondayIsViewOnly) {
+    return res.status(403).json({
+      error: 'As a viewer, you are unable to change client portal settings.',
+      code: 'VIEW_ONLY',
+    });
+  }
+  return next();
+}
+
+module.exports = { authenticateAdmin, getAdminIdentity, requireAdminWrite };

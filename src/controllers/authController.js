@@ -2,6 +2,12 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { getDb } = require('../services/dbService');
 const { getValidInvite, activateInvite } = require('../services/inviteService');
+const {
+  findClientsByEmail,
+  isValidEmail,
+  normalizeEmail,
+  toPublicClient,
+} = require('../services/clientDataService');
 
 function validatePassword(password) {
   return typeof password === 'string' && password.length >= 8 && password.length <= 128;
@@ -16,14 +22,14 @@ function signClientToken(client) {
 }
 
 async function loginClient(req, res) {
-  const { email, password } = req.body;
+  const { email, password, accountId } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
   }
 
   // Basic input validation
-  if (typeof email !== 'string' || email.length > 255) {
+  if (typeof email !== 'string' || email.length > 255 || !isValidEmail(email)) {
     return res.status(400).json({ error: 'Invalid email format' });
   }
   if (typeof password !== 'string' || password.length > 128) {
@@ -32,7 +38,16 @@ async function loginClient(req, res) {
 
   try {
     const db = getDb();
-    const client = await db.get('SELECT * FROM clients WHERE email = ?', [email.trim().toLowerCase()]);
+    const matches = await findClientsByEmail(db, normalizeEmail(email), accountId);
+    if (matches.length > 1 && !accountId) {
+      return res.status(409).json({
+        error: 'This email is connected to multiple workspaces. Select a workspace to continue.',
+        code: 'ACCOUNT_SELECTION_REQUIRED',
+        accounts: matches.map((client) => ({ accountId: String(client.monday_account_id) })),
+      });
+    }
+
+    const client = matches[0] || null;
     if (!client) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -44,7 +59,7 @@ async function loginClient(req, res) {
 
     const token = signClientToken(client);
 
-    res.json({ token, client: { id: client.id, name: client.name, email: client.email } });
+    res.json({ token, client: { id: client.id, name: client.name, email: client.email, accountId: String(client.monday_account_id) } });
   } catch (err) {
     console.error('Login error', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -80,7 +95,16 @@ async function activateClientInvite(req, res) {
     }
 
     const token = signClientToken(client);
-    return res.json({ token, client: { id: client.id, name: client.name, email: client.email } });
+    const publicClient = toPublicClient(client);
+    return res.json({
+      token,
+      client: {
+        id: publicClient.id,
+        name: publicClient.name,
+        email: publicClient.email,
+        accountId: String(publicClient.monday_account_id),
+      },
+    });
   } catch (err) {
     console.error('Invite activation error', err);
     return res.status(500).json({ error: 'Failed to activate invite' });
