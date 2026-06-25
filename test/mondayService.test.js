@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  buildBoardQuery,
+  isFileQuerySchemaError,
   normalizeAssets,
   normalizeBoardData,
   normalizeUpdates,
@@ -29,7 +31,7 @@ test('normalizeBoardData exposes Monday file column assets to the client payload
                     {
                       __typename: 'FileAssetValue',
                       asset_id: 500,
-                      name: 'Original file name',
+                      asset_value_name: 'Original file name',
                       created_at: '2026-06-24T09:00:00Z',
                       asset: {
                         id: 500,
@@ -44,7 +46,7 @@ test('normalizeBoardData exposes Monday file column assets to the client payload
                     {
                       __typename: 'FileLinkValue',
                       file_id: 'link-1',
-                      name: 'Reference link',
+                      link_value_name: 'Reference link',
                       url: 'https://example.com/reference',
                       created_at: '2026-06-24T11:00:00Z',
                     },
@@ -163,4 +165,29 @@ test('normalizeUpdates includes creators and update attachment assets', () => {
       ],
     },
   ]);
+});
+
+test('buildBoardQuery can omit optional file fragments for schema fallback', () => {
+  const queryWithFiles = buildBoardQuery(true);
+  const queryWithoutFiles = buildBoardQuery(false);
+
+  assert.match(queryWithFiles, /FileAssetValue/);
+  assert.match(queryWithFiles, /asset_value_name: name/);
+  assert.match(queryWithFiles, /FileLinkValue/);
+  assert.match(queryWithFiles, /link_value_name: name/);
+  assert.match(queryWithFiles, /FileDocValue/);
+  assert.match(queryWithFiles, /invalid_value_name: name/);
+  assert.doesNotMatch(queryWithoutFiles, /FileAssetValue/);
+  assert.doesNotMatch(queryWithoutFiles, /files\s*\{/);
+  assert.match(queryWithoutFiles, /column_values/);
+});
+
+test('isFileQuerySchemaError identifies Monday file fragment schema errors only', () => {
+  const error = new Error('Cannot query field "id" on type "FileValueItem".');
+  error.mondayErrors = [
+    { message: 'Cannot query field "name" on type "FileValueItem".' },
+  ];
+
+  assert.equal(isFileQuerySchemaError(error), true);
+  assert.equal(isFileQuerySchemaError(new Error('User unauthorized')), false);
 });
