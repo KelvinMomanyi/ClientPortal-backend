@@ -21,6 +21,19 @@ const {
   normalizeName,
   toPublicClient,
 } = require('../services/clientDataService');
+const {
+  assertBillingActive,
+  assertWithinPlanLimit,
+  getAccountPlanSummary,
+  recordUsageEvent,
+  serializePlanError,
+} = require('../services/planService');
+const {
+  getAccountNotificationEmail,
+  sendClientInviteEmail,
+  sendClientUpdateNotification,
+  sendPlanLimitNotification,
+} = require('../services/emailService');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
@@ -48,6 +61,54 @@ function formatClientUpdateBody(client, comment) {
   return `<p><strong>Client portal update from ${safeAuthor}</strong></p><p>${safeComment}</p>`;
 }
 
+function isPlanError(err) {
+  return err?.code === 'SUBSCRIPTION_INACTIVE' || err?.code === 'PLAN_LIMIT_EXCEEDED';
+}
+
+async function notifyPlanLimit(accountId, err) {
+  if (err?.code !== 'PLAN_LIMIT_EXCEEDED') return;
+
+  try {
+    const db = getDb();
+    const account = await db.get('SELECT notification_email, billing_email FROM accounts WHERE monday_account_id = ?', [accountId]);
+    await sendPlanLimitNotification({
+      to: getAccountNotificationEmail(account),
+      accountId,
+      metric: err.metric,
+      planLabel: err.plan?.label || 'current',
+      usage: err.attempted,
+      limit: err.limit,
+    });
+  } catch (emailErr) {
+    console.error('Failed to send plan limit notification:', emailErr.message);
+  }
+}
+
+async function respondWithPlanError(res, accountId, err) {
+  await notifyPlanLimit(accountId, err);
+  return res.status(err.statusCode || 402).json(serializePlanError(err));
+}
+
+async function sendInviteNotification(client, invite) {
+  try {
+    await sendClientInviteEmail({
+      to: client.email,
+      clientName: client.name,
+      inviteUrl: invite.inviteUrl,
+      expiresAt: invite.expiresAt,
+    });
+  } catch (emailErr) {
+    console.error('Failed to send client invite email:', emailErr.message);
+  }
+}
+
+function getSafeUpstreamError(err, fallback) {
+  if (err?.isMondayApiError && err.message) {
+    return `Monday API error: ${err.message}`;
+  }
+  return fallback;
+}
+
 async function getClientDashboard(req, res) {
   try {
     const { clientId, accountId } = req.user; // From authMiddleware (which decodes authController token)
@@ -62,9 +123,7 @@ async function getClientDashboard(req, res) {
     if (!account || !account.access_token) {
       return res.status(500).json({ error: 'Monday account integration not found.' });
     }
-    if (account.subscription_status !== 'active') { // For future monetization
-      return res.status(403).json({ error: 'Monday account subscription is inactive.' });
-    }
+    await assertBillingActive(accountId);
 
     // Find boards assigned to this client
     const portals = await db.all('SELECT * FROM portals WHERE client_id = ? AND monday_account_id = ?', [clientId, accountId]);
@@ -88,6 +147,9 @@ async function getClientDashboard(req, res) {
 
     res.json({ boards: boardsData });
   } catch (error) {
+    if (isPlanError(error)) {
+      return respondWithPlanError(res, req.user?.accountId, error);
+    }
     console.error('Error fetching client dashboard:', error);
     res.status(500).json({ error: 'Failed to fetch Monday data' });
   }
@@ -118,12 +180,23 @@ async function assignBoardToClient(req, res) {
       return res.status(400).json({ error: 'Board already assigned to this client.' });
     }
 
+    const boardAlreadyAssigned = await db.get(
+      'SELECT id FROM portals WHERE monday_account_id = ? AND board_id = ? LIMIT 1',
+      [accountId, boardId]
+    );
+    if (!boardAlreadyAssigned) {
+      await assertWithinPlanLimit(accountId, 'boards', 1);
+    }
+
     const result = await db.run(
       'INSERT INTO portals (monday_account_id, client_id, board_id) VALUES (?, ?, ?)',
       [accountId, clientId, boardId]
     );
     res.json({ success: true, portalId: result.lastID });
   } catch (err) {
+    if (isPlanError(err)) {
+      return respondWithPlanError(res, accountId, err);
+    }
     console.error('Error assigning board:', err);
     res.status(500).json({ error: 'Could not assign board.' });
   }
@@ -146,12 +219,16 @@ async function updateStatus(req, res) {
       return res.status(500).json({ error: 'Internal setup error.' });
     }
 
+    await assertBillingActive(accountId);
     await assertClientCanAccessItem(clientId, accountId, boardId, itemId);
     await updateItemStatus(decryptString(account.access_token), boardId, itemId, resolvedColumnId, status);
     res.json({ success: true, columnUpdated: resolvedColumnId });
   } catch (err) {
     if (err.statusCode) {
       return res.status(err.statusCode).json({ error: err.message });
+    }
+    if (isPlanError(err)) {
+      return respondWithPlanError(res, accountId, err);
     }
     console.error('Error updating status:', err);
     res.status(500).json({ error: 'Failed to update status on Monday.com' });
@@ -174,15 +251,21 @@ async function getItemUpdates(req, res) {
       return res.status(500).json({ error: 'Internal setup error.' });
     }
 
+    await assertBillingActive(accountId);
     await assertClientCanAccessItem(clientId, accountId, boardId, itemId);
     const updates = await getMondayItemUpdates(decryptString(account.access_token), itemId);
     return res.json({ updates });
   } catch (err) {
-    if (err.statusCode) {
+    if (isPlanError(err)) {
+      return respondWithPlanError(res, accountId, err);
+    }
+    if (err.statusCode && !err.isMondayApiError) {
       return res.status(err.statusCode).json({ error: err.message });
     }
     console.error('Error fetching item updates:', err);
-    return res.status(500).json({ error: 'Failed to fetch item updates.' });
+    return res.status(err.statusCode || 500).json({
+      error: getSafeUpstreamError(err, 'Failed to fetch item updates.'),
+    });
   }
 }
 
@@ -214,15 +297,36 @@ async function createClientItemUpdate(req, res) {
       return res.status(404).json({ error: 'Client not found.' });
     }
 
+    await assertWithinPlanLimit(accountId, 'clientUpdatesMonthly', 1);
     await assertClientCanAccessItem(clientId, accountId, boardId, itemId);
     const update = await createItemUpdate(decryptString(account.access_token), itemId, formatClientUpdateBody(client, body));
+    await recordUsageEvent(accountId, 'client_update', 1, { boardId, itemId, clientId });
+
+    const notificationAccount = await db.get(
+      'SELECT notification_email, billing_email FROM accounts WHERE monday_account_id = ?',
+      [accountId]
+    );
+    await sendClientUpdateNotification({
+      to: getAccountNotificationEmail(notificationAccount),
+      clientName: client.name,
+      clientEmail: client.email,
+      boardId,
+      itemId,
+      comment: body.trim(),
+    }).catch((emailErr) => console.error('Failed to send client update notification:', emailErr.message));
+
     return res.json({ success: true, update });
   } catch (err) {
-    if (err.statusCode) {
+    if (isPlanError(err)) {
+      return respondWithPlanError(res, accountId, err);
+    }
+    if (err.statusCode && !err.isMondayApiError) {
       return res.status(err.statusCode).json({ error: err.message });
     }
     console.error('Error creating item update:', err);
-    return res.status(500).json({ error: 'Failed to post item update.' });
+    return res.status(err.statusCode || 500).json({
+      error: getSafeUpstreamError(err, 'Failed to post item update.'),
+    });
   }
 }
 
@@ -241,9 +345,13 @@ async function getAdminBoard(req, res) {
       return res.status(500).json({ error: 'Monday account integration not found.' });
     }
 
+    await assertBillingActive(accountId);
     const data = await getBoardData(decryptString(account.access_token), boardId);
     res.json({ board: data?.boards?.[0] || null });
   } catch (err) {
+    if (isPlanError(err)) {
+      return respondWithPlanError(res, accountId, err);
+    }
     console.error('Error fetching admin board:', err);
     res.status(500).json({ error: 'Failed to fetch Monday board.' });
   }
@@ -297,9 +405,19 @@ async function updateClientPermissions(req, res) {
       return res.status(400).json({ error: 'Board must be assigned before item permissions can be set.' });
     }
 
+    const currentItemIds = await getAllowedItemIds(id, accountId, boardId);
+    const nextItemIds = new Set(itemIds.map(String));
+    const delta = Math.max(nextItemIds.size - currentItemIds.size, 0);
+    if (delta > 0) {
+      await assertWithinPlanLimit(accountId, 'itemPermissions', delta);
+    }
+
     const savedItemIds = await replaceClientItemPermissions(id, accountId, boardId, itemIds);
     res.json({ success: true, itemIds: savedItemIds });
   } catch (err) {
+    if (isPlanError(err)) {
+      return respondWithPlanError(res, accountId, err);
+    }
     console.error('Error updating permissions:', err);
     res.status(500).json({ error: 'Failed to update permissions.' });
   }
@@ -334,7 +452,8 @@ async function getClients(req, res) {
         pending_invite_expires_at: inviteExpiresAt,
       };
     });
-    res.json({ clients: safeClients });
+    const billing = await getAccountPlanSummary(accountId);
+    res.json({ clients: safeClients, billing });
   } catch (err) {
     console.error('Error fetching clients:', err);
     res.status(500).json({ error: 'Failed to fetch clients.' });
@@ -362,6 +481,7 @@ async function createClient(req, res) {
 
   try {
     const db = getDb();
+    await assertWithinPlanLimit(accountId, 'clients', 1);
     const initialPassword = password || crypto.randomBytes(32).toString('hex');
     const hash = await bcrypt.hash(initialPassword, 10);
     const storage = buildClientStorage(accountId, cleanName, cleanEmail);
@@ -383,11 +503,15 @@ async function createClient(req, res) {
 
     if (!password) {
       const invite = await createClientInvite(result.lastID, req);
+      await sendInviteNotification({ id: result.lastID, name: cleanName, email: cleanEmail }, invite);
       return res.json({ success: true, clientId: result.lastID, invite });
     }
 
     return res.json({ success: true, clientId: result.lastID });
   } catch (err) {
+    if (isPlanError(err)) {
+      return respondWithPlanError(res, accountId, err);
+    }
     if (err.message.includes('UNIQUE constraint failed')) {
       return res.status(400).json({ error: 'Email already exists' });
     }
@@ -477,8 +601,12 @@ async function createInviteForClient(req, res) {
     }
 
     const invite = await createClientInvite(client.id, req);
+    await sendInviteNotification(client, invite);
     return res.json({ success: true, client, invite });
   } catch (err) {
+    if (isPlanError(err)) {
+      return respondWithPlanError(res, accountId, err);
+    }
     console.error('Error creating client invite:', err);
     return res.status(500).json({ error: 'Failed to create invite' });
   }

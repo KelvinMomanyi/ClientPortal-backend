@@ -3,10 +3,12 @@ const assert = require('node:assert/strict');
 
 const {
   buildBoardQuery,
+  buildItemUpdatesQuery,
   buildNextItemsPageQuery,
   getItemsPageLimit,
   getMaxBoardPages,
   isFileQuerySchemaError,
+  isUpdateAssetsQuerySchemaError,
   normalizeAssets,
   normalizeBoardData,
   normalizeUpdates,
@@ -196,6 +198,16 @@ test('buildNextItemsPageQuery uses cursor pagination for large boards', () => {
   assert.doesNotMatch(query, /FileAssetValue/);
 });
 
+test('buildItemUpdatesQuery can omit optional update asset fields for fallback', () => {
+  const queryWithAssets = buildItemUpdatesQuery(true);
+  const queryWithoutAssets = buildItemUpdatesQuery(false);
+
+  assert.match(queryWithAssets, /updates\(limit: 10\)/);
+  assert.match(queryWithAssets, /assets\s*\{/);
+  assert.match(queryWithoutAssets, /updates\(limit: 10\)/);
+  assert.doesNotMatch(queryWithoutAssets, /assets\s*\{/);
+});
+
 test('Monday pagination limits are bounded for review-safe board loading', () => {
   const oldLimit = process.env.MONDAY_ITEMS_PAGE_LIMIT;
   const oldPages = process.env.MONDAY_MAX_BOARD_PAGES;
@@ -226,4 +238,12 @@ test('isFileQuerySchemaError identifies Monday file fragment schema errors only'
 
   assert.equal(isFileQuerySchemaError(error), true);
   assert.equal(isFileQuerySchemaError(new Error('User unauthorized')), false);
+});
+
+test('isUpdateAssetsQuerySchemaError identifies optional update asset schema errors only', () => {
+  const error = new Error('Cannot query field "created_at" on type "Asset".');
+  error.mondayErrors = [{ message: 'Cannot query field "created_at" on type "Asset".' }];
+
+  assert.equal(isUpdateAssetsQuerySchemaError(error), true);
+  assert.equal(isUpdateAssetsQuerySchemaError(new Error('Unauthorized')), false);
 });

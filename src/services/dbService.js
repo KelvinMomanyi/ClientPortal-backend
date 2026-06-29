@@ -62,9 +62,27 @@ async function initDb() {
       created_at INTEGER NOT NULL,
       FOREIGN KEY (client_id) REFERENCES clients (id)
     );
+
+    CREATE TABLE IF NOT EXISTS usage_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      monday_account_id INTEGER NOT NULL,
+      event_type TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      metadata TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (monday_account_id) REFERENCES accounts (monday_account_id)
+    );
   `);
 
     await ensureColumn('accounts', 'token_encrypted_at', 'INTEGER');
+    await ensureColumn('accounts', 'plan_code', "TEXT DEFAULT 'starter'");
+    await ensureColumn('accounts', 'subscription_current_period_end', 'INTEGER');
+    await ensureColumn('accounts', 'trial_ends_at', 'INTEGER');
+    await ensureColumn('accounts', 'billing_provider', 'TEXT');
+    await ensureColumn('accounts', 'billing_customer_id', 'TEXT');
+    await ensureColumn('accounts', 'billing_subscription_id', 'TEXT');
+    await ensureColumn('accounts', 'notification_email', 'TEXT');
+    await ensureColumn('accounts', 'billing_email', 'TEXT');
     await ensureColumn('clients', 'name_encrypted', 'TEXT');
     await ensureColumn('clients', 'email_encrypted', 'TEXT');
     await ensureColumn('clients', 'email_hash', 'TEXT');
@@ -92,6 +110,9 @@ async function initDb() {
 
     CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_account_email_hash
       ON clients (monday_account_id, email_hash);
+
+    CREATE INDEX IF NOT EXISTS idx_usage_events_account_type_time
+      ON usage_events (monday_account_id, event_type, created_at);
   `);
 
     const { migrateSensitiveData } = require('./privacyMigrationService');

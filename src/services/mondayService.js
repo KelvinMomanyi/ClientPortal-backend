@@ -121,6 +121,8 @@ async function executeMondayQuery(token, query, variables = {}) {
       console.error('Monday API Errors:', JSON.stringify(response.errors, null, 2));
       const error = new Error(response.errors[0].message);
       error.mondayErrors = response.errors;
+      error.isMondayApiError = true;
+      error.statusCode = 502;
       throw error;
     }
     return response.data;
@@ -210,7 +212,35 @@ async function updateItemStatus(token, boardId, itemId, columnId, label) {
 }
 
 async function getItemUpdates(token, itemId) {
-  const query = `
+  try {
+    const data = await executeMondayQuery(token, buildItemUpdatesQuery(true), { itemId: itemId.toString() });
+    return normalizeUpdates(data?.items?.[0]?.updates || []);
+  } catch (err) {
+    if (!isUpdateAssetsQuerySchemaError(err)) {
+      throw err;
+    }
+
+    console.warn('Monday update assets query failed; retrying item updates without asset details.', err.message);
+    const data = await executeMondayQuery(token, buildItemUpdatesQuery(false), { itemId: itemId.toString() });
+    return normalizeUpdates(data?.items?.[0]?.updates || []);
+  }
+}
+
+function buildItemUpdatesQuery(includeAssets = true) {
+  const assetFields = includeAssets
+    ? `
+          assets {
+            id
+            name
+            url
+            public_url
+            url_thumbnail
+            file_size
+            created_at
+          }`
+    : '';
+
+  return `
     query getItemUpdates($itemId: [ID!]) {
       items(ids: $itemId) {
         id
@@ -222,22 +252,11 @@ async function getItemUpdates(token, itemId) {
             id
             name
           }
-          assets {
-            id
-            name
-            url
-            public_url
-            url_thumbnail
-            file_size
-            created_at
-          }
+${assetFields}
         }
       }
     }
   `;
-
-  const data = await executeMondayQuery(token, query, { itemId: itemId.toString() });
-  return normalizeUpdates(data?.items?.[0]?.updates || []);
 }
 
 async function createItemUpdate(token, itemId, body) {
@@ -332,12 +351,27 @@ function isFileQuerySchemaError(error) {
   );
 }
 
+function isUpdateAssetsQuerySchemaError(error) {
+  const messages = [
+    error?.message,
+    ...(Array.isArray(error?.mondayErrors) ? error.mondayErrors.map((entry) => entry?.message) : []),
+  ]
+    .filter(Boolean)
+    .map((message) => String(message));
+
+  return messages.some((message) =>
+    /Cannot query field .* on type "(Asset|Update)"/.test(message)
+    || /Unknown type "(Asset|Update)"/.test(message)
+  );
+}
+
 module.exports = {
   executeMondayQuery,
   getBoardData,
   updateItemStatus,
   getItemUpdates,
   createItemUpdate,
+  buildItemUpdatesQuery,
   buildNextItemsPageQuery,
   buildBoardQuery,
   fetchBoardData,
@@ -346,5 +380,6 @@ module.exports = {
   normalizeBoardData,
   normalizeAssets,
   normalizeUpdates,
-  isFileQuerySchemaError
+  isFileQuerySchemaError,
+  isUpdateAssetsQuerySchemaError
 };
