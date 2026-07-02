@@ -29,6 +29,10 @@ const {
   serializePlanError,
 } = require('../services/planService');
 const {
+  isSubscriptionUpdate,
+  syncAccountSubscription,
+} = require('../services/monetizationService');
+const {
   getAccountNotificationEmail,
   sendApprovalDecisionNotification,
   sendClientInviteEmail,
@@ -143,6 +147,17 @@ async function sendInviteNotification(client, invite) {
     });
   } catch (emailErr) {
     console.error('Failed to send client invite email:', emailErr.message);
+  }
+}
+
+async function syncMondaySubscriptionFromRequest(req) {
+  if (!req?.mondayAccountId || !req?.mondaySessionPayload) return null;
+  if (!isSubscriptionUpdate(req.mondaySessionPayload)) return null;
+  try {
+    return await syncAccountSubscription(getDb(), req.mondayAccountId, req.mondaySessionPayload);
+  } catch (err) {
+    console.error('Failed to sync monday subscription from session payload:', err.message);
+    return null;
   }
 }
 
@@ -602,6 +617,7 @@ async function getClients(req, res) {
   try {
     const accountId = req.mondayAccountId;
     const db = getDb();
+    await syncMondaySubscriptionFromRequest(req);
     
     const clients = await db.all(`
       SELECT
@@ -645,12 +661,26 @@ async function getAdminPortalSettings(req, res) {
   try {
     const accountId = req.mondayAccountId;
     const db = getDb();
+    await syncMondaySubscriptionFromRequest(req);
     const portalSettings = await getPortalSettings(db, accountId);
     const setup = await getSetupStatus(db, accountId, portalSettings);
     return res.json({ portalSettings, setup });
   } catch (err) {
     console.error('Error fetching portal settings:', err);
     return res.status(500).json({ error: 'Failed to fetch portal settings.' });
+  }
+}
+
+async function syncAdminSubscription(req, res) {
+  try {
+    const db = getDb();
+    const payload = isSubscriptionUpdate(req.body || {}) ? req.body : req.mondaySessionPayload;
+    const syncResult = payload ? await syncAccountSubscription(db, req.mondayAccountId, payload) : null;
+    const billing = await getAccountPlanSummary(req.mondayAccountId);
+    return res.json({ success: Boolean(syncResult?.synced), sync: syncResult, billing });
+  } catch (err) {
+    console.error('Error syncing monday subscription:', err);
+    return res.status(err.statusCode || 500).json({ error: err.message || 'Failed to sync subscription.' });
   }
 }
 
@@ -1056,6 +1086,7 @@ module.exports = {
   updateClientPermissions,
   getClients,
   getAdminPortalSettings,
+  syncAdminSubscription,
   saveAdminPortalSettings,
   getAdminActivity,
   getAdminFileRequests,

@@ -100,6 +100,7 @@ function authenticateAdmin(req, res, next) {
     req.mondayAccountId = identity.accountId;
     req.mondayUserId = identity.userId;
     req.mondayIsViewOnly = identity.isViewOnly;
+    req.mondaySessionPayload = decoded;
 
     return next();
   } catch (err) {

@@ -34,6 +34,10 @@ const PLAN_LIMITS = {
 const BILLING_ACTIVE_STATUSES = new Set(['active', 'trialing']);
 const BILLING_SOFT_ACTIVE_STATUSES = new Set(['past_due', 'canceled']);
 
+function isMondayMonetizationRequired() {
+  return process.env.MONDAY_MONETIZATION_REQUIRED === 'true';
+}
+
 function getDefaultPlanCode() {
   return normalizePlanCode(process.env.DEFAULT_PLAN_CODE || 'starter');
 }
@@ -60,6 +64,7 @@ function isUnlimited(limit) {
 
 function isBillingActive(account, now = Date.now()) {
   if (!account) return false;
+  if (isMondayMonetizationRequired() && !account.monday_app_plan_id) return false;
   const status = String(account.subscription_status || 'active').toLowerCase();
   if (status === 'active') return true;
 
@@ -163,6 +168,20 @@ function buildBillingSummary(account, usage) {
   return {
     status: account?.subscription_status || 'active',
     active: isBillingActive(account || { subscription_status: 'active' }),
+    monetizationRequired: isMondayMonetizationRequired(),
+    billingProvider: account?.billing_provider || null,
+    monday: {
+      planId: account?.monday_app_plan_id || null,
+      billingPeriod: account?.monday_app_billing_period || null,
+      subscriptionDaysLeft:
+        account?.monday_app_subscription_days_left === null || account?.monday_app_subscription_days_left === undefined
+          ? null
+          : Number(account.monday_app_subscription_days_left),
+      subscriptionIsTrial: Boolean(Number(account?.monday_app_subscription_is_trial || 0)),
+      subscriptionSyncedAt: account?.monday_app_subscription_synced_at
+        ? Number(account.monday_app_subscription_synced_at)
+        : null,
+    },
     plan,
     currentPeriodEnd: account?.subscription_current_period_end ? Number(account.subscription_current_period_end) : null,
     trialEndsAt: account?.trial_ends_at ? Number(account.trial_ends_at) : null,
@@ -243,6 +262,7 @@ module.exports = {
   getPlan,
   getUsageCounts,
   isBillingActive,
+  isMondayMonetizationRequired,
   recordUsageEvent,
   serializePlanError,
 };

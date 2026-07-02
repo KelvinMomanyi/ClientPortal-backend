@@ -12,6 +12,7 @@ const {
   getClientPermissions,
   updateClientPermissions,
   getAdminPortalSettings,
+  syncAdminSubscription,
   saveAdminPortalSettings,
   getAdminActivity,
   getAdminFileRequests,
@@ -38,6 +39,7 @@ router.post('/webhooks', handleMondayWebhook);
 // Admin routes (require admin authentication)
 router.get('/clients', authenticateAdmin, getClients);
 router.get('/admin/settings', authenticateAdmin, getAdminPortalSettings);
+router.post('/admin/subscription/sync', authenticateAdmin, syncAdminSubscription);
 router.put('/admin/settings', authenticateAdmin, requireAdminWrite, saveAdminPortalSettings);
 router.get('/admin/activity', authenticateAdmin, getAdminActivity);
 router.get('/admin/file-requests', authenticateAdmin, getAdminFileRequests);
