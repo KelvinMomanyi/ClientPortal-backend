@@ -8,6 +8,7 @@ const {
   getItemsPageLimit,
   getMaxBoardPages,
   isFileQuerySchemaError,
+  isMondayPermissionError,
   isUpdateAssetsQuerySchemaError,
   normalizeAssets,
   normalizeBoardData,
@@ -246,4 +247,14 @@ test('isUpdateAssetsQuerySchemaError identifies optional update asset schema err
 
   assert.equal(isUpdateAssetsQuerySchemaError(error), true);
   assert.equal(isUpdateAssetsQuerySchemaError(new Error('Unauthorized')), false);
+});
+
+test('isMondayPermissionError identifies OAuth scope and authorization failures', () => {
+  const missingScope = new Error('The operation requires updates:read scope.');
+  missingScope.mondayErrors = [
+    { message: 'User is unauthorized to access this resource.', extensions: { code: 'UserUnauthorizedException' } },
+  ];
+
+  assert.equal(isMondayPermissionError(missingScope), true);
+  assert.equal(isMondayPermissionError(new Error('Cannot query field "id" on type "FileValueItem".')), false);
 });

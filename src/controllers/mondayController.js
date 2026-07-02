@@ -103,6 +103,9 @@ async function sendInviteNotification(client, invite) {
 }
 
 function getSafeUpstreamError(err, fallback) {
+  if (err?.code === 'MONDAY_PERMISSION_ERROR' || err?.isMondayPermissionError) {
+    return 'Monday permissions are missing for item comments. Add the updates:read and updates:write scopes in the monday Developer Center, then reinstall or reauthorize the app.';
+  }
   if (err?.isMondayApiError && err.message) {
     return `Monday API error: ${err.message}`;
   }

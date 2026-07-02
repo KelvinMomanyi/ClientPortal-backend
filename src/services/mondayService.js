@@ -122,11 +122,19 @@ async function executeMondayQuery(token, query, variables = {}) {
       const error = new Error(response.errors[0].message);
       error.mondayErrors = response.errors;
       error.isMondayApiError = true;
-      error.statusCode = 502;
+      error.isMondayPermissionError = isMondayPermissionError(error);
+      error.code = error.isMondayPermissionError ? 'MONDAY_PERMISSION_ERROR' : 'MONDAY_API_ERROR';
+      error.statusCode = error.isMondayPermissionError ? 403 : 502;
       throw error;
     }
     return response.data;
   } catch (err) {
+    if (!err.isMondayApiError && isMondayPermissionError(err)) {
+      err.isMondayApiError = true;
+      err.isMondayPermissionError = true;
+      err.code = 'MONDAY_PERMISSION_ERROR';
+      err.statusCode = 403;
+    }
     console.error('Error executing Monday API query:', err);
     throw err;
   }
@@ -365,6 +373,34 @@ function isUpdateAssetsQuerySchemaError(error) {
   );
 }
 
+function getMondayErrorMessages(error) {
+  return [
+    error?.message,
+    error?.code,
+    error?.status,
+    error?.statusCode,
+    error?.extensions?.code,
+    error?.response?.status,
+    error?.cause?.status,
+    ...(Array.isArray(error?.mondayErrors)
+      ? error.mondayErrors.flatMap((entry) => [
+          entry?.message,
+          entry?.code,
+          entry?.extensions?.code,
+          entry?.extensions?.status_code,
+        ])
+      : []),
+  ]
+    .filter(Boolean)
+    .map((message) => String(message));
+}
+
+function isMondayPermissionError(error) {
+  return getMondayErrorMessages(error).some((message) =>
+    /\b(401|403)\b|unauthori[sz]ed|forbidden|permission|access denied|not authorized|missing.*scope|scope.*missing|insufficient.*scope|UserUnauthorized|OAuth/i.test(message)
+  );
+}
+
 module.exports = {
   executeMondayQuery,
   getBoardData,
@@ -381,5 +417,7 @@ module.exports = {
   normalizeAssets,
   normalizeUpdates,
   isFileQuerySchemaError,
-  isUpdateAssetsQuerySchemaError
+  isUpdateAssetsQuerySchemaError,
+  getMondayErrorMessages,
+  isMondayPermissionError
 };
