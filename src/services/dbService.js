@@ -72,6 +72,54 @@ async function initDb() {
       created_at INTEGER NOT NULL,
       FOREIGN KEY (monday_account_id) REFERENCES accounts (monday_account_id)
     );
+
+    CREATE TABLE IF NOT EXISTS item_approvals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      monday_account_id TEXT NOT NULL,
+      client_id INTEGER NOT NULL,
+      board_id TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      reason TEXT,
+      decided_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (client_id) REFERENCES clients (id)
+    );
+
+    CREATE TABLE IF NOT EXISTS client_file_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      monday_account_id TEXT NOT NULL,
+      client_id INTEGER NOT NULL,
+      board_id TEXT NOT NULL,
+      item_id TEXT,
+      title TEXT NOT NULL,
+      instructions TEXT,
+      due_at INTEGER,
+      status TEXT NOT NULL DEFAULT 'open',
+      requested_by TEXT,
+      response_note TEXT,
+      response_links TEXT,
+      responded_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (client_id) REFERENCES clients (id)
+    );
+
+    CREATE TABLE IF NOT EXISTS client_activity_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      monday_account_id TEXT NOT NULL,
+      client_id INTEGER,
+      board_id TEXT,
+      item_id TEXT,
+      event_type TEXT NOT NULL,
+      actor_type TEXT NOT NULL,
+      actor_name TEXT,
+      summary TEXT NOT NULL,
+      metadata TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (client_id) REFERENCES clients (id)
+    );
   `);
 
     await ensureColumn('accounts', 'token_encrypted_at', 'INTEGER');
@@ -83,6 +131,17 @@ async function initDb() {
     await ensureColumn('accounts', 'billing_subscription_id', 'TEXT');
     await ensureColumn('accounts', 'notification_email', 'TEXT');
     await ensureColumn('accounts', 'billing_email', 'TEXT');
+    await ensureColumn('accounts', 'portal_name', 'TEXT');
+    await ensureColumn('accounts', 'portal_logo_url', 'TEXT');
+    await ensureColumn('accounts', 'portal_primary_color', 'TEXT');
+    await ensureColumn('accounts', 'portal_welcome_message', 'TEXT');
+    await ensureColumn('accounts', 'support_email', 'TEXT');
+    await ensureColumn('accounts', 'onboarding_completed_at', 'INTEGER');
+    await ensureColumn('accounts', 'monday_app_plan_id', 'TEXT');
+    await ensureColumn('accounts', 'monday_app_billing_period', 'TEXT');
+    await ensureColumn('accounts', 'monday_app_subscription_days_left', 'INTEGER');
+    await ensureColumn('accounts', 'monday_app_subscription_is_trial', 'INTEGER');
+    await ensureColumn('accounts', 'monday_app_subscription_synced_at', 'INTEGER');
     await ensureColumn('clients', 'name_encrypted', 'TEXT');
     await ensureColumn('clients', 'email_encrypted', 'TEXT');
     await ensureColumn('clients', 'email_hash', 'TEXT');
@@ -113,6 +172,24 @@ async function initDb() {
 
     CREATE INDEX IF NOT EXISTS idx_usage_events_account_type_time
       ON usage_events (monday_account_id, event_type, created_at);
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_item_approvals_unique
+      ON item_approvals (monday_account_id, client_id, board_id, item_id);
+
+    CREATE INDEX IF NOT EXISTS idx_item_approvals_lookup
+      ON item_approvals (monday_account_id, client_id, board_id);
+
+    CREATE INDEX IF NOT EXISTS idx_file_requests_client_status
+      ON client_file_requests (monday_account_id, client_id, status, due_at);
+
+    CREATE INDEX IF NOT EXISTS idx_file_requests_item
+      ON client_file_requests (monday_account_id, client_id, board_id, item_id);
+
+    CREATE INDEX IF NOT EXISTS idx_activity_account_time
+      ON client_activity_events (monday_account_id, created_at);
+
+    CREATE INDEX IF NOT EXISTS idx_activity_client_item
+      ON client_activity_events (monday_account_id, client_id, board_id, item_id, created_at);
   `);
 
     const { migrateSensitiveData } = require('./privacyMigrationService');

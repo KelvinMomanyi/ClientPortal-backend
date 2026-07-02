@@ -120,6 +120,90 @@ async function sendClientUpdateNotification({ to, clientName, clientEmail, board
   });
 }
 
+async function sendApprovalDecisionNotification({ to, clientName, clientEmail, boardId, itemId, decision, reason }) {
+  const label = decision === 'approved' ? 'approved an item' : 'requested changes on an item';
+  const text = [
+    `${clientName || 'A client'}${clientEmail ? ` (${clientEmail})` : ''} ${label}.`,
+    '',
+    `Board: ${boardId}`,
+    `Item: ${itemId}`,
+    '',
+    reason ? `Reason:\n${reason}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const html = [
+    paragraph(`${clientName || 'A client'}${clientEmail ? ` (${clientEmail})` : ''} ${label}.`),
+    paragraph(`Board: ${boardId}\nItem: ${itemId}`),
+    reason ? paragraph(`Reason:\n${reason}`) : '',
+  ].join('');
+
+  return sendEmail({
+    to,
+    subject: decision === 'approved' ? 'Client approved an item' : 'Client requested changes',
+    text,
+    html,
+  });
+}
+
+async function sendFileRequestEmail({ to, clientName, title, instructions, dueAt }) {
+  const dueLabel = dueAt ? new Date(Number(dueAt)).toLocaleString('en-US') : '';
+  const text = [
+    `Hi ${clientName || 'there'},`,
+    '',
+    `A new file request is waiting in your client portal: ${title}`,
+    dueLabel ? `Due: ${dueLabel}` : '',
+    '',
+    instructions || 'Please open the portal to submit the requested file links.',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const html = [
+    paragraph(`Hi ${clientName || 'there'},`),
+    paragraph(`A new file request is waiting in your client portal: ${title}`),
+    dueLabel ? paragraph(`Due: ${dueLabel}`) : '',
+    paragraph(instructions || 'Please open the portal to submit the requested file links.'),
+  ].join('');
+
+  return sendEmail({
+    to,
+    subject: `File request: ${title}`,
+    text,
+    html,
+  });
+}
+
+async function sendFileSubmissionNotification({ to, clientName, clientEmail, boardId, itemId, title, links, note }) {
+  const linkList = (links || []).map((link) => `- ${link}`).join('\n');
+  const text = [
+    `${clientName || 'A client'}${clientEmail ? ` (${clientEmail})` : ''} submitted files for "${title}".`,
+    '',
+    `Board: ${boardId}`,
+    itemId ? `Item: ${itemId}` : '',
+    '',
+    note ? `Note:\n${note}` : '',
+    linkList ? `Links:\n${linkList}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const html = [
+    paragraph(`${clientName || 'A client'}${clientEmail ? ` (${clientEmail})` : ''} submitted files for "${title}".`),
+    paragraph(`Board: ${boardId}${itemId ? `\nItem: ${itemId}` : ''}`),
+    note ? paragraph(`Note:\n${note}`) : '',
+    linkList ? paragraph(`Links:\n${linkList}`) : '',
+  ].join('');
+
+  return sendEmail({
+    to,
+    subject: `Client submitted files: ${title}`,
+    text,
+    html,
+  });
+}
+
 async function sendPlanLimitNotification({ to, accountId, metric, planLabel, usage, limit }) {
   return sendEmail({
     to,
@@ -133,8 +217,11 @@ module.exports = {
   getAccountNotificationEmail,
   getDefaultNotificationEmail,
   isEmailConfigured,
+  sendApprovalDecisionNotification,
   sendClientInviteEmail,
   sendClientUpdateNotification,
   sendEmail,
+  sendFileRequestEmail,
+  sendFileSubmissionNotification,
   sendPlanLimitNotification,
 };
